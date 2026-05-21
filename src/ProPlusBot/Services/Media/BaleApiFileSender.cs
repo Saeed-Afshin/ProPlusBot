@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProPlusBot.Services.Media;
 
@@ -38,6 +39,24 @@ public class BaleApiFileSender(
         return await SendMultipartAsync(chatId, filePath, fileInfo, method, fieldName, ct);
     }
 
+    public Task<Message> SendPhotoAsync(
+        long chatId,
+        byte[] imageBytes,
+        string fileName,
+        string? caption,
+        InlineKeyboardMarkup? replyMarkup,
+        CancellationToken ct) =>
+        SendMultipartBytesAsync(
+            chatId,
+            imageBytes,
+            fileName,
+            "image/jpeg",
+            "sendPhoto",
+            "photo",
+            caption,
+            replyMarkup,
+            ct);
+
     private async Task<Message> SendMultipartAsync(
         long chatId,
         string filePath,
@@ -54,6 +73,41 @@ public class BaleApiFileSender(
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileInfo.Extension));
         content.Add(fileContent, fieldName, fileInfo.Name);
 
+        return await PostBaleApiAsync(method, content, ct);
+    }
+
+    private async Task<Message> SendMultipartBytesAsync(
+        long chatId,
+        byte[] bytes,
+        string fileName,
+        string mimeType,
+        string method,
+        string fieldName,
+        string? caption,
+        InlineKeyboardMarkup? replyMarkup,
+        CancellationToken ct)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(chatId.ToString()), "chat_id");
+
+        if (!string.IsNullOrEmpty(caption))
+            content.Add(new StringContent(caption), "caption");
+
+        if (replyMarkup is not null)
+            content.Add(new StringContent(ToReplyMarkupJson(replyMarkup)), "reply_markup");
+
+        var fileContent = new ByteArrayContent(bytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+        content.Add(fileContent, fieldName, fileName);
+
+        return await PostBaleApiAsync(method, content, ct);
+    }
+
+    private async Task<Message> PostBaleApiAsync(
+        string method,
+        HttpContent content,
+        CancellationToken ct)
+    {
         var url = $"{_botOptions.BaleApiBaseUrl.TrimEnd('/')}/bot{_botOptions.Token}/{method}";
         var client = httpClientFactory.CreateClient(nameof(BaleApiFileSender));
 
@@ -75,6 +129,17 @@ public class BaleApiFileSender(
 
         return apiResponse.Result;
     }
+
+    private static string ToReplyMarkupJson(InlineKeyboardMarkup markup) =>
+        JsonSerializer.Serialize(new
+        {
+            inline_keyboard = markup.InlineKeyboard
+                .Select(row => row.Select(btn => new
+                {
+                    text = btn.Text,
+                    callback_data = btn.CallbackData
+                }))
+        });
 
     private static string GetMimeType(string extension) => extension.ToLowerInvariant() switch
     {

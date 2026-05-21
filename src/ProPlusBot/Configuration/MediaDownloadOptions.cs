@@ -10,7 +10,8 @@ public class MediaDownloadOptions
     /// <summary>Executable name or full path to gallery-dl (Pinterest image fallback).</summary>
     public string GalleryDlPath { get; set; } = "gallery-dl";
 
-    public int MaxSearchResults { get; set; } = 10;
+    /// <summary>Items fetched per search page (9; matches <see cref="MediaConstants.SearchResultsPerPage"/>).</summary>
+    public int MaxSearchResults { get; set; } = 9;
 
     /// <summary>HTTP timeout for Pinterest unofficial search API.</summary>
     public int PinterestSearchTimeoutSeconds { get; set; } = 30;

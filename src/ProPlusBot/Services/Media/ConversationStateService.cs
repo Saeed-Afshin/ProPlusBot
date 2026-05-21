@@ -5,7 +5,7 @@ namespace ProPlusBot.Services.Media;
 public class ConversationStateService(IMemoryCache cache)
 {
     private static string StateKey(long userId) => $"media:state:{userId}";
-    private static string ResultsKey(long userId) => $"media:results:{userId}";
+    private static string SessionKey(long userId) => $"media:session:{userId}";
 
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
 
@@ -20,20 +20,20 @@ public class ConversationStateService(IMemoryCache cache)
     public void Clear(long userId)
     {
         cache.Remove(StateKey(userId));
-        cache.Remove(ResultsKey(userId));
+        cache.Remove(SessionKey(userId));
     }
 
-    public void SetSearchResults(long userId, IReadOnlyList<MediaSearchResultItem> results) =>
-        cache.Set(ResultsKey(userId), results, Ttl);
+    public void SetSearchSession(long userId, MediaSearchSession session) =>
+        cache.Set(SessionKey(userId), session, Ttl);
 
-    public IReadOnlyList<MediaSearchResultItem>? GetSearchResults(long userId) =>
-        cache.TryGetValue(ResultsKey(userId), out IReadOnlyList<MediaSearchResultItem>? results)
-            ? results
+    public MediaSearchSession? GetSearchSession(long userId) =>
+        cache.TryGetValue(SessionKey(userId), out MediaSearchSession? session)
+            ? session
             : null;
 
-    public void RefreshSearchResults(long userId)
+    public void RefreshSearchSession(long userId)
     {
-        if (cache.TryGetValue(ResultsKey(userId), out IReadOnlyList<MediaSearchResultItem>? results) && results is not null)
-            cache.Set(ResultsKey(userId), results, Ttl);
+        if (cache.TryGetValue(SessionKey(userId), out MediaSearchSession? session) && session is not null)
+            cache.Set(SessionKey(userId), session, Ttl);
     }
 }

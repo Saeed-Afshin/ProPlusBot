@@ -3,6 +3,7 @@ using ProPlusBot.Configuration;
 using ProPlusBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProPlusBot.Services.Media;
 
@@ -26,6 +27,48 @@ public class MediaFileSender(
     {
         var sent = await bot.SendMessage(chatId, text, cancellationToken: ct);
         await chatStorage.SaveOutgoingAsync(chatId, text, sent.MessageId, ct);
+    }
+
+    /// <summary>Sends the 3×3 search preview grid (multipart on Bale — stream upload fails there).</summary>
+    public async Task<bool> SendSearchGridPhotoAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        byte[] imageBytes,
+        string caption,
+        InlineKeyboardMarkup replyMarkup,
+        CancellationToken ct)
+    {
+        try
+        {
+            Message sent = _useBaleApi
+                ? await baleFileSender.SendPhotoAsync(chatId, imageBytes, "search-grid.jpg", caption, replyMarkup, ct)
+                : await SendSearchGridViaTelegramBotAsync(bot, chatId, imageBytes, caption, replyMarkup, ct);
+
+            await chatStorage.SaveOutgoingAsync(chatId, caption, sent.MessageId, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send search grid photo to {ChatId}", chatId);
+            return false;
+        }
+    }
+
+    private static async Task<Message> SendSearchGridViaTelegramBotAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        byte[] imageBytes,
+        string caption,
+        InlineKeyboardMarkup replyMarkup,
+        CancellationToken ct)
+    {
+        await using var stream = new MemoryStream(imageBytes);
+        return await bot.SendPhoto(
+            chatId,
+            InputFile.FromStream(stream, "search-grid.jpg"),
+            caption: caption,
+            replyMarkup: replyMarkup,
+            cancellationToken: ct);
     }
 
     public async Task<bool> SendFileAsync(

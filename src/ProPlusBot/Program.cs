@@ -83,6 +83,13 @@ builder.Services.AddHttpClient(nameof(MediaToolsBootstrapHostedService), client 
 builder.Services.AddHostedService<MediaToolsBootstrapHostedService>();
 builder.Services.AddSingleton<YtDlpService>();
 builder.Services.AddSingleton<GalleryDlService>();
+builder.Services.AddHttpClient(nameof(SearchResultGridComposer), client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+});
+builder.Services.AddSingleton<SearchResultGridComposer>();
 builder.Services.AddHttpClient<PinterestSearchService>((_, client) =>
 {
     var timeoutSeconds = builder.Configuration

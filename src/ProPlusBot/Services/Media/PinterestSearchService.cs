@@ -1,26 +1,22 @@
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using ProPlusBot.Configuration;
 
 namespace ProPlusBot.Services.Media;
 
 public class PinterestSearchService(
     HttpClient httpClient,
-    IOptions<MediaDownloadOptions> options,
     ILogger<PinterestSearchService> logger)
 {
     private const string SearchResourceUrl =
         "https://www.pinterest.com/resource/BaseSearchResource/get/";
 
-    private readonly MediaDownloadOptions _options = options.Value;
-
-    public async Task<IReadOnlyList<MediaSearchResultItem>> SearchAsync(
+    public async Task<PinterestSearchPage> SearchPageAsync(
         string query,
+        string? bookmark = null,
         CancellationToken ct = default)
     {
         var requestPayload = JsonSerializer.Serialize(new
         {
-            options = new { query, bookmarks = new[] { "" } },
+            options = new { query, bookmarks = new[] { bookmark ?? "" } },
             context = new { }
         });
 
@@ -39,7 +35,7 @@ public class PinterestSearchService(
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             logger.LogWarning(ex, "Pinterest search HTTP request failed for query {Query}", query);
-            return [];
+            return new PinterestSearchPage([], null);
         }
 
         if (!response.IsSuccessStatusCode)
@@ -48,13 +44,30 @@ public class PinterestSearchService(
                 "Pinterest search returned {StatusCode} for query {Query}",
                 response.StatusCode,
                 query);
-            return [];
+            return new PinterestSearchPage([], null);
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
 
-        return ParseResults(document.RootElement, _options.MaxSearchResults);
+        var items = ParseResults(document.RootElement, MediaConstants.SearchResultsPerPage);
+        var nextBookmark = TryGetNextBookmark(document.RootElement);
+        return new PinterestSearchPage(items, nextBookmark);
+    }
+
+    private static string? TryGetNextBookmark(JsonElement root)
+    {
+        if (!root.TryGetProperty("resource_response", out var resourceResponse)
+            || !resourceResponse.TryGetProperty("bookmark", out var bookmarkElement))
+        {
+            return null;
+        }
+
+        if (bookmarkElement.ValueKind == JsonValueKind.Null)
+            return null;
+
+        var bookmark = bookmarkElement.GetString();
+        return string.IsNullOrWhiteSpace(bookmark) ? null : bookmark;
     }
 
     private static IReadOnlyList<MediaSearchResultItem> ParseResults(JsonElement root, int limit)

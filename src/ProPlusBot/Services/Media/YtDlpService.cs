@@ -12,10 +12,13 @@ public class YtDlpService(
 
     public async Task<IReadOnlyList<MediaSearchResultItem>> SearchYouTubeAsync(
         string query,
+        int pageIndex = 0,
         CancellationToken ct = default)
     {
-        var count = _options.MaxSearchResults;
-        var searchUrl = $"ytsearch{count}:{query}";
+        var pageSize = MediaConstants.SearchResultsPerPage;
+        var skip = pageIndex * pageSize;
+        var fetchCount = skip + pageSize;
+        var searchUrl = $"ytsearch{fetchCount}:{query}";
         await tools.WaitReadyAsync(ct);
         if (!tools.HasYtDlp)
             return [];
@@ -56,7 +59,7 @@ public class YtDlpService(
                 $"https://i.ytimg.com/vi/{id}/hqdefault.jpg"));
         }
 
-        return items;
+        return items.Skip(skip).Take(pageSize).ToList();
     }
 
     public async Task<string?> DownloadAsync(string url, string outputDirectory, CancellationToken ct = default)

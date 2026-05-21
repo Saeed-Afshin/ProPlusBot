@@ -1,3 +1,4 @@
+using System.Globalization;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
 using Telegram.Bot;
@@ -11,6 +12,7 @@ public class MediaBotHandler(
     MediaDownloadQueue downloadQueue,
     YtDlpService ytDlp,
     PinterestSearchService pinterestSearch,
+    SearchResultGridComposer gridComposer,
     MediaFileSender fileSender,
     BaleBotClientFactory clientFactory,
     ChatStorageService chatStorage,
@@ -27,8 +29,44 @@ public class MediaBotHandler(
         var userId = callback.From.Id;
         var bot = clientFactory.CreateClient();
 
-        var results = conversationState.GetSearchResults(userId);
-        if (results is null || results.Count == 0)
+        if (TryParseSearchNextCallback(callback.Data, out var nextPrefix))
+        {
+            var session = conversationState.GetSearchSession(userId);
+            if (session is null || !string.Equals(session.CallbackPrefix, nextPrefix, StringComparison.Ordinal))
+            {
+                conversationState.Clear(userId);
+                await fileSender.SendTextAsync(bot, userId,
+                    "نتایج جستجو منقضی شده است. دوباره جستجو کنید.", ct);
+                return true;
+            }
+
+            if (!session.HasMoreResults)
+            {
+                await fileSender.SendTextAsync(bot, userId, "نتیجهٔ بیشتری وجود ندارد.", ct);
+                return true;
+            }
+
+            if (!await CanUsePlatformAsync(bot, userId, session.Platform, ct))
+                return true;
+
+            await LoadAndSendSearchPageAsync(bot, userId, session, session.Page + 1, ct);
+            return true;
+        }
+
+        if (callback.Data is $"{MediaConstants.CallbackYouTubePrefix}x"
+            or $"{MediaConstants.CallbackPinterestPrefix}x")
+        {
+            return true;
+        }
+
+        if (!TryParseSearchSelectCallback(callback.Data, out var selectPrefix, out var index))
+            return false;
+
+        var searchSession = conversationState.GetSearchSession(userId);
+        if (searchSession is null
+            || !string.Equals(searchSession.CallbackPrefix, selectPrefix, StringComparison.Ordinal)
+            || index < 0
+            || index >= searchSession.Results.Count)
         {
             conversationState.Clear(userId);
             await fileSender.SendTextAsync(bot, userId,
@@ -36,59 +74,16 @@ public class MediaBotHandler(
             return true;
         }
 
-        MediaSearchResultItem? selected = null;
-        DetectedMediaPlatform platform;
+        if (!await CanUsePlatformAsync(bot, userId, searchSession.Platform, ct))
+            return true;
 
-        if (callback.Data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal))
-        {
-            platform = DetectedMediaPlatform.YouTube;
-            if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
-            {
-                conversationState.Clear(userId);
-                await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
-                return true;
-            }
-            if (!int.TryParse(callback.Data[MediaConstants.CallbackYouTubePrefix.Length..], out var index)
-                || index < 0 || index >= results.Count)
-            {
-                conversationState.Clear(userId);
-                await fileSender.SendTextAsync(bot, userId, BotConversationHelper.StateResetMessage, ct);
-                return true;
-            }
+        conversationState.RefreshSearchSession(userId);
 
-            selected = results[index];
-        }
-        else if (callback.Data.StartsWith(MediaConstants.CallbackPinterestPrefix, StringComparison.Ordinal))
-        {
-            platform = DetectedMediaPlatform.Pinterest;
-            if (!await botFeatures.CanUsePinterestAsync(userId, ct))
-            {
-                conversationState.Clear(userId);
-                await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
-                return true;
-            }
-            if (!int.TryParse(callback.Data[MediaConstants.CallbackPinterestPrefix.Length..], out var index)
-                || index < 0 || index >= results.Count)
-            {
-                conversationState.Clear(userId);
-                await fileSender.SendTextAsync(bot, userId, BotConversationHelper.StateResetMessage, ct);
-                return true;
-            }
-
-            selected = results[index];
-        }
-        else
-        {
-            return false;
-        }
-
-        conversationState.RefreshSearchResults(userId);
-
-        var source = platform == DetectedMediaPlatform.YouTube
+        var source = searchSession.Platform == DetectedMediaPlatform.YouTube
             ? MediaDownloadSource.YouTubeSearch
             : MediaDownloadSource.PinterestSearch;
 
-        await TryEnqueueDownloadAsync(bot, userId, selected.Url, platform, source, ct);
+        await TryEnqueueDownloadAsync(bot, userId, searchSession.Results[index].Url, searchSession.Platform, source, ct);
         return true;
     }
 
@@ -163,7 +158,7 @@ public class MediaBotHandler(
                 return true;
             }
 
-            await HandleYouTubeSearchAsync(bot, userId, text!, ct);
+            await StartSearchAsync(bot, userId, text!, DetectedMediaPlatform.YouTube, ct);
             return true;
         }
 
@@ -176,7 +171,7 @@ public class MediaBotHandler(
                 return true;
             }
 
-            await HandlePinterestSearchAsync(bot, userId, text!, ct);
+            await StartSearchAsync(bot, userId, text!, DetectedMediaPlatform.Pinterest, ct);
             return true;
         }
 
@@ -185,94 +180,227 @@ public class MediaBotHandler(
         return true;
     }
 
-    private async Task HandleYouTubeSearchAsync(
+    private async Task StartSearchAsync(
         ITelegramBotClient bot,
         long userId,
         string query,
+        DetectedMediaPlatform platform,
         CancellationToken ct)
     {
         conversationState.SetState(userId, MediaConversationState.Idle);
         await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
 
-        var results = await ytDlp.SearchYouTubeAsync(query, ct);
-        if (results.Count == 0)
+        var session = await FetchSearchPageAsync(query, platform, page: 0, pinterestBookmark: null, ct);
+        if (session is null || session.Results.Count == 0)
         {
+            var platformName = platform == DetectedMediaPlatform.YouTube ? "یوتیوب" : "پینترست";
             await fileSender.SendTextAsync(bot, userId,
-                "نتیجه‌ای یافت نشد. عبارت دیگری امتحان کنید یا دکمه «جستجوی یوتیوب» را بزنید.", ct);
+                $"نتیجه‌ای یافت نشد. عبارت دیگری امتحان کنید یا دکمه «جستجوی {platformName}» را بزنید.", ct);
             return;
         }
 
-        conversationState.SetSearchResults(userId, results);
-        await SendSearchResultsAsync(bot, userId, results, MediaConstants.CallbackYouTubePrefix, ct);
+        conversationState.SetSearchSession(userId, session);
+        await SendSearchResultsPageAsync(bot, userId, session, ct);
     }
 
-    private async Task HandlePinterestSearchAsync(
+    private async Task LoadAndSendSearchPageAsync(
         ITelegramBotClient bot,
         long userId,
-        string query,
+        MediaSearchSession current,
+        int nextPage,
         CancellationToken ct)
     {
-        conversationState.SetState(userId, MediaConversationState.Idle);
         await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
 
-        var results = await pinterestSearch.SearchAsync(query, ct);
-        if (results.Count == 0)
+        var session = await FetchSearchPageAsync(
+            current.Query,
+            current.Platform,
+            nextPage,
+            current.PinterestBookmark,
+            ct);
+
+        if (session is null || session.Results.Count == 0)
         {
-            await fileSender.SendTextAsync(bot, userId,
-                "نتیجه‌ای یافت نشد. عبارت دیگری امتحان کنید یا دکمه «جستجوی پینترست» را بزنید.", ct);
+            await fileSender.SendTextAsync(bot, userId, "نتیجهٔ بیشتری وجود ندارد.", ct);
             return;
         }
 
-        conversationState.SetSearchResults(userId, results);
-        await SendSearchResultsAsync(bot, userId, results, MediaConstants.CallbackPinterestPrefix, ct);
+        conversationState.SetSearchSession(userId, session);
+        await SendSearchResultsPageAsync(bot, userId, session, ct);
     }
 
-    private async Task SendSearchResultsAsync(
-        ITelegramBotClient bot,
-        long userId,
-        IReadOnlyList<MediaSearchResultItem> results,
-        string callbackPrefix,
+    private async Task<MediaSearchSession?> FetchSearchPageAsync(
+        string query,
+        DetectedMediaPlatform platform,
+        int page,
+        string? pinterestBookmark,
         CancellationToken ct)
     {
-        await fileSender.SendTextAsync(bot, userId, "یک مورد را انتخاب کنید:", ct);
+        var pageSize = MediaConstants.SearchResultsPerPage;
 
-        for (var i = 0; i < results.Count; i++)
+        if (platform == DetectedMediaPlatform.YouTube)
         {
-            var item = results[i];
-            var caption = TruncateTitle($"{i + 1}. {item.Title}", 1024);
-            var markup = new InlineKeyboardMarkup(
-                InlineKeyboardButton.WithCallbackData("دانلود", $"{callbackPrefix}{i}"));
+            var results = await ytDlp.SearchYouTubeAsync(query, page, ct);
+            return new MediaSearchSession(
+                query,
+                page,
+                results,
+                HasMoreResults: results.Count == pageSize,
+                MediaConstants.CallbackYouTubePrefix,
+                platform,
+                PinterestBookmark: null);
+        }
 
-            try
+        if (platform == DetectedMediaPlatform.Pinterest)
+        {
+            var pinPage = await pinterestSearch.SearchPageAsync(query, pinterestBookmark, ct);
+            var hasMore = pinPage.Items.Count == pageSize && !string.IsNullOrWhiteSpace(pinPage.NextBookmark);
+            return new MediaSearchSession(
+                query,
+                page,
+                pinPage.Items,
+                hasMore,
+                MediaConstants.CallbackPinterestPrefix,
+                platform,
+                pinPage.NextBookmark);
+        }
+
+        return null;
+    }
+
+    private async Task SendSearchResultsPageAsync(
+        ITelegramBotClient bot,
+        long userId,
+        MediaSearchSession session,
+        CancellationToken ct)
+    {
+        var caption = session.Page == 0
+            ? "نتایج جستجو — یک شماره را انتخاب کنید:"
+            : $"نتایج جستجو — صفحه {session.Page + 1}\nیک شماره را انتخاب کنید:";
+
+        var markup = BuildSearchKeyboard(session);
+
+        var gridJpeg = await gridComposer.CreateGridJpegAsync(session.Results, ct);
+        if (gridJpeg is not null
+            && await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, markup, ct))
+        {
+            return;
+        }
+
+        if (gridJpeg is null)
+            logger.LogWarning("Search grid image was not created for user {UserId}", userId);
+
+        var fallback = await bot.SendMessage(userId, caption, replyMarkup: markup, cancellationToken: ct);
+        await chatStorage.SaveOutgoingAsync(userId, caption, fallback.MessageId, ct);
+    }
+
+    private static InlineKeyboardMarkup BuildSearchKeyboard(MediaSearchSession session)
+    {
+        var rows = new List<InlineKeyboardButton[]>();
+        var itemCount = session.Results.Count;
+
+        for (var row = 0; row < 3; row++)
+        {
+            var buttonRow = new InlineKeyboardButton[3];
+            for (var col = 0; col < 3; col++)
             {
-                if (!string.IsNullOrWhiteSpace(item.ThumbnailUrl))
+                var slot = row * 3 + col;
+                if (slot < itemCount)
                 {
-                    var sent = await bot.SendPhoto(
-                        userId,
-                        InputFile.FromUri(item.ThumbnailUrl),
-                        caption: caption,
-                        replyMarkup: markup,
-                        cancellationToken: ct);
-                    await chatStorage.SaveOutgoingAsync(userId, caption, sent.MessageId, ct);
-                    continue;
+                    buttonRow[col] = InlineKeyboardButton.WithCallbackData(
+                        (slot + 1).ToString(CultureInfo.InvariantCulture),
+                        $"{session.CallbackPrefix}{slot}");
+                }
+                else
+                {
+                    buttonRow[col] = InlineKeyboardButton.WithCallbackData(
+                        " ",
+                        $"{session.CallbackPrefix}x");
                 }
             }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to send search thumbnail for user {UserId}", userId);
-            }
 
-            var fallback = await bot.SendMessage(
-                userId,
-                caption,
-                replyMarkup: markup,
-                cancellationToken: ct);
-            await chatStorage.SaveOutgoingAsync(userId, caption, fallback.MessageId, ct);
+            rows.Add(buttonRow);
         }
+
+        if (session.HasMoreResults)
+        {
+            rows.Add(
+            [
+                InlineKeyboardButton.WithCallbackData(
+                    MediaConstants.NextPageButtonText,
+                    $"{session.CallbackPrefix}{MediaConstants.CallbackNextPage}")
+            ]);
+        }
+
+        return new InlineKeyboardMarkup(rows);
     }
 
-    private static string TruncateTitle(string title, int maxLength) =>
-        title.Length <= maxLength ? title : title[..(maxLength - 1)] + "…";
+    private static bool TryParseSearchNextCallback(string data, out string prefix)
+    {
+        if (data == MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage)
+        {
+            prefix = MediaConstants.CallbackYouTubePrefix;
+            return true;
+        }
+
+        if (data == MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackNextPage)
+        {
+            prefix = MediaConstants.CallbackPinterestPrefix;
+            return true;
+        }
+
+        prefix = string.Empty;
+        return false;
+    }
+
+    private static bool TryParseSearchSelectCallback(string data, out string prefix, out int index)
+    {
+        prefix = string.Empty;
+        index = -1;
+
+        if (data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal)
+            && data != MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage)
+        {
+            prefix = MediaConstants.CallbackYouTubePrefix;
+            var suffix = data[prefix.Length..];
+            return suffix.Length > 0
+                && suffix != "x"
+                && int.TryParse(suffix, out index);
+        }
+
+        if (data.StartsWith(MediaConstants.CallbackPinterestPrefix, StringComparison.Ordinal)
+            && data != MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackNextPage)
+        {
+            prefix = MediaConstants.CallbackPinterestPrefix;
+            var suffix = data[prefix.Length..];
+            return suffix.Length > 0
+                && suffix != "x"
+                && int.TryParse(suffix, out index);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> CanUsePlatformAsync(
+        ITelegramBotClient bot,
+        long userId,
+        DetectedMediaPlatform platform,
+        CancellationToken ct)
+    {
+        var allowed = platform switch
+        {
+            DetectedMediaPlatform.YouTube => await botFeatures.CanUseYouTubeAsync(userId, ct),
+            DetectedMediaPlatform.Pinterest => await botFeatures.CanUsePinterestAsync(userId, ct),
+            _ => false
+        };
+
+        if (allowed)
+            return true;
+
+        conversationState.Clear(userId);
+        await fileSender.SendTextAsync(bot, userId, BotFeatureService.DisabledMessage(platform), ct);
+        return false;
+    }
 
     private async Task TryEnqueueDownloadAsync(
         ITelegramBotClient bot,
