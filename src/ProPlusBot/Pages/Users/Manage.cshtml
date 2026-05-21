@@ -96,7 +96,7 @@
                         <tr>
                             <td>@MediaPlatformMapper.ToDisplayName(r.Plan)</td>
                             <td>@r.DurationDays</td>
-                            <td dir="ltr">@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(r.CreatedAt)</td>
                             <td>
                                 <form method="post" asp-page-handler="DeleteReserved" class="d-inline">
                                     <input type="hidden" name="reservationId" value="@r.Id" />

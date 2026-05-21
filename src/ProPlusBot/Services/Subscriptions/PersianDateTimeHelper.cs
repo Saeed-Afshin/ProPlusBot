@@ -17,6 +17,15 @@ public static class PersianDateTimeHelper
         return FormatShamsiDate(local);
     }
 
+    public static string ToShamsiMonthYearString(DateTime utc) =>
+        ToShamsiMonthYearFromTehranLocal(ToTehranLocal(utc));
+
+    public static string ToShamsiDateFromTehranLocal(DateTime tehranLocal) =>
+        FormatShamsiDate(tehranLocal);
+
+    public static string ToShamsiMonthYearFromTehranLocal(DateTime tehranLocal) =>
+        $"{Persian.GetYear(tehranLocal):0000}/{Persian.GetMonth(tehranLocal):00}";
+
     public static string ToTimeString(DateTime? utc)
     {
         if (utc is null)

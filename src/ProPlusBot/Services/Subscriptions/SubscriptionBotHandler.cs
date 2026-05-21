@@ -189,8 +189,8 @@ public class SubscriptionBotHandler(
             lines.Add($"انقضا: {PersianDateTimeHelper.ToShamsiDateString(summary.PlanExpiresAt)} {PersianDateTimeHelper.ToTimeString(summary.PlanExpiresAt)} (تهران)");
 
         lines.Add(summary.IsBanned ? "وضعیت: مسدود" : "وضعیت: فعال");
-        lines.Add($"تازه‌سازی روزانه: نیمه‌شب به وقت تهران ({IranTime.NowLocal:yyyy-MM-dd})");
-        lines.Add($"تازه‌سازی ماهانه: اول هر ماه به وقت تهران ({IranTime.NowLocal:yyyy-MM})");
+        lines.Add($"تازه‌سازی روزانه: نیمه‌شب به وقت تهران ({PersianDateTimeHelper.ToShamsiDateFromTehranLocal(IranTime.NowLocal)})");
+        lines.Add($"تازه‌سازی ماهانه: اول هر ماه به وقت تهران ({PersianDateTimeHelper.ToShamsiMonthYearFromTehranLocal(IranTime.NowLocal)})");
         lines.Add(string.Empty);
 
         foreach (var q in summary.Quotas)
@@ -236,7 +236,7 @@ public class SubscriptionBotHandler(
                     PaymentStatus.Failed => "ناموفق",
                     _ => p.Status.ToString()
                 };
-                lines.Add($"• {p.CreatedAt:yyyy-MM-dd} — {type} — {TomanCurrency.FormatToman(p.AmountToman)} — {status}");
+                lines.Add($"• {PersianDateTimeHelper.ToShamsiDateString(p.CreatedAt)} — {type} — {TomanCurrency.FormatToman(p.AmountToman)} — {status}");
             }
         }
 
