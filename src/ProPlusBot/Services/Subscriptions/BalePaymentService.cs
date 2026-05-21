@@ -6,6 +6,7 @@ using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Payments;
 
@@ -14,6 +15,7 @@ namespace ProPlusBot.Services.Subscriptions;
 public class BalePaymentService(
     BaleBotClientFactory clientFactory,
     BotSettingsService botSettingsService,
+    UserAccessService userAccess,
     SubscriptionService subscriptionService,
     AppDbContext db,
     IOptions<PaymentOptions> paymentOptions,
@@ -83,6 +85,25 @@ public class BalePaymentService(
     public async Task HandlePreCheckoutQueryAsync(PreCheckoutQuery query, CancellationToken ct = default)
     {
         var bot = clientFactory.CreateClient();
+
+        var settings = await botSettingsService.GetAsync(ct);
+        if (!settings.IsActive)
+        {
+            await AnswerPreCheckoutAsync(bot, query.Id, ok: false, "ربات موقتاً غیرفعال است.", ct);
+            return;
+        }
+
+        if (!await userAccess.CanReceiveBotResponseAsync(query.From.Id, ct))
+        {
+            await AnswerPreCheckoutAsync(
+                bot,
+                query.Id,
+                ok: false,
+                "در حالت تست فقط کاربران مجاز می‌توانند پرداخت کنند.",
+                ct);
+            return;
+        }
+
         var ok = false;
         var message = "پرداخت نامعتبر است.";
 
@@ -100,7 +121,16 @@ public class BalePaymentService(
                     && payment.AmountRials == query.TotalAmount)
                 {
                     ok = true;
-                    message = string.Empty;
+                }
+                else if (payment is not null)
+                {
+                    logger.LogWarning(
+                        "PreCheckout rejected for {PaymentId}: status={Status}, userMatch={UserMatch}, amountExpected={Expected}, amountGot={Got}",
+                        paymentId,
+                        payment.Status,
+                        payment.TelegramUserId == query.From.Id,
+                        payment.AmountRials,
+                        query.TotalAmount);
                 }
             }
         }
@@ -109,11 +139,23 @@ public class BalePaymentService(
             logger.LogWarning(ex, "PreCheckout validation failed");
         }
 
-        await bot.AnswerPreCheckoutQuery(
-            query.Id,
-            ok ? string.Empty : message,
-            cancellationToken: ct);
+        await AnswerPreCheckoutAsync(bot, query.Id, ok, ok ? null : message, ct);
     }
+
+    private static Task AnswerPreCheckoutAsync(
+        ITelegramBotClient bot,
+        string preCheckoutQueryId,
+        bool ok,
+        string? errorMessage,
+        CancellationToken ct) =>
+        bot.SendRequest(
+            new AnswerPreCheckoutQueryRequest
+            {
+                PreCheckoutQueryId = preCheckoutQueryId,
+                Ok = ok,
+                ErrorMessage = ok ? null : errorMessage ?? "پرداخت نامعتبر است."
+            },
+            ct);
 
     public async Task HandleSuccessfulPaymentAsync(Message message, CancellationToken ct = default)
     {

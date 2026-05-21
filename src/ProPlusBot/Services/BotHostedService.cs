@@ -14,6 +14,13 @@ public class BotHostedService(
     IOptions<BotOptions> botOptions,
     ILogger<BotHostedService> logger) : BackgroundService
 {
+    private static readonly UpdateType[] PaymentUpdateTypes =
+    [
+        UpdateType.Message,
+        UpdateType.CallbackQuery,
+        UpdateType.PreCheckoutQuery
+    ];
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
@@ -56,16 +63,12 @@ public class BotHostedService(
     private async Task RunLongPollingAsync(CancellationToken ct)
     {
         var bot = clientFactory.CreateClient();
-        logger.LogInformation("Starting Bale bot long polling");
+        await bot.DeleteWebhook(cancellationToken: ct);
+        logger.LogInformation("Webhook cleared; starting Bale bot long polling");
 
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates =
-            [
-                UpdateType.Message,
-                UpdateType.CallbackQuery,
-                UpdateType.PreCheckoutQuery
-            ]
+            AllowedUpdates = PaymentUpdateTypes
         };
 
         bot.StartReceiving(
@@ -114,7 +117,7 @@ public class BotHostedService(
         await bot.SetWebhook(
             settings.WebhookUrl,
             secretToken: secret,
-            allowedUpdates: [UpdateType.Message],
+            allowedUpdates: PaymentUpdateTypes,
             cancellationToken: ct);
         logger.LogInformation("Webhook configured to {Url}", settings.WebhookUrl);
     }

@@ -33,13 +33,6 @@ public class BotUpdateHandler(
     {
         if (update.PreCheckoutQuery is not null)
         {
-            var preCheckoutSettings = await settingsService.GetAsync(ct);
-            if (!preCheckoutSettings.IsActive)
-                return;
-
-            if (!await userAccess.CanReceiveBotResponseAsync(update.PreCheckoutQuery.From.Id, ct))
-                return;
-
             await paymentService.HandlePreCheckoutQueryAsync(update.PreCheckoutQuery, ct);
             return;
         }
