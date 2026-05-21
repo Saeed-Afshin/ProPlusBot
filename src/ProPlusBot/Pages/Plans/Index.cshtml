@@ -1,26 +1,43 @@
 @page
 @using ProPlusBot.Entities
 @using ProPlusBot.Services.Subscriptions
-@model ProPlusBot.Pages.Pricing.IndexModel
+@model ProPlusBot.Pages.Plans.IndexModel
 @{
-    ViewData["Title"] = "قیمت‌گذاری";
+    ViewData["Title"] = "پلن‌ها";
 }
 
-<h2 class="mb-4">قیمت‌گذاری و محدودیت پلن‌ها</h2>
+<h2 class="mb-4">پلن‌ها و محدودیت‌ها</h2>
 
 @if (Model.SuccessMessage is not null)
 {
     <div class="alert alert-success">@Model.SuccessMessage</div>
 }
 
+<div class="card mb-4">
+    <div class="card-header">پلن آزمایشی (Trial)</div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="SaveTrial" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" asp-for="PostedTrialDurationDays">مدت دوره آزمایشی (روز)</label>
+                <input asp-for="PostedTrialDurationDays" class="form-control" type="number" min="1" max="365" />
+                <div class="form-text">کاربران جدید تا این مدت می‌توانند از ربات استفاده کنند. پس از آن باید پلن بخرند.</div>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">ذخیره مدت آزمایشی</button>
+            </div>
+        </form>
+        <p class="text-muted small mb-0 mt-3">
+            محدودیت‌های جستجو و دانلود پلن آزمایشی در جدول زیر (ستون «آزمایشی») قابل ویرایش است.
+        </p>
+    </div>
+</div>
+
 <div class="table-responsive mb-4">
     <table class="table table-bordered table-striped align-middle text-center pricing-matrix-table">
         <thead class="table-dark">
         <tr>
             <th class="row-label-col">پلتفرم</th>
-            <th class="row-label-col">دوره</th>
-            <th class="row-label-col">نوع</th>
-            <th class="row-label-col">واحد</th>
+            <th class="row-label-col">محدودیت ماهانه</th>
             @foreach (var plan in Model.PlanColumns)
             {
                 <th class="plan-col">@MediaPlatformMapper.ToDisplayName(plan)</th>
@@ -35,9 +52,7 @@
         }
         <tr class="table-secondary">
             <td class="row-label-col">—</td>
-            <td class="row-label-col">—</td>
-            <td class="row-label-col">قیمت ماهانه</td>
-            <td class="row-label-col">تومان</td>
+            <td class="row-label-col">قیمت ماهانه (تومان)</td>
             @foreach (var plan in Model.PlanColumns)
             {
                 <td class="plan-col">
@@ -65,9 +80,7 @@
             var rowFormId = $"form-limit-{(int)row.Platform}-{(int)row.Period}-{(int)row.LimitKind}";
             <tr>
                 <td class="row-label-col">@PlanLimitDisplay.PlatformLabel(row.Platform)</td>
-                <td class="row-label-col">@PlanLimitDisplay.PeriodLabel(row.Period, row.LimitKind)</td>
-                <td class="row-label-col">@PlanLimitDisplay.TypeLabel(row.LimitKind)</td>
-                <td class="row-label-col">@PlanLimitDisplay.UnitLabel(row.LimitKind)</td>
+                <td class="row-label-col">@PlanLimitDisplay.MonthlyLimitLabel(row.LimitKind)</td>
                 @foreach (var plan in Model.PlanColumns)
                 {
                     var cell = row.Cells[plan];

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
+using ProPlusBot.Services.Subscriptions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -32,6 +33,17 @@ public class UserAccessService(
 
     public Task<bool> IsPrivilegedUserAsync(long telegramUserId, CancellationToken ct = default) =>
         IsStaffUserAsync(telegramUserId, ct);
+
+    public async Task<bool> HasSubscriptionAccessAsync(long telegramUserId, CancellationToken ct = default)
+    {
+        if (await IsStaffUserAsync(telegramUserId, ct))
+            return true;
+
+        var user = await db.BotUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct);
+
+        return user is not null && PlanLifecycleService.HasSubscriptionAccess(user);
+    }
 
     public async Task<bool> IsStaffUserAsync(long telegramUserId, CancellationToken ct = default)
     {

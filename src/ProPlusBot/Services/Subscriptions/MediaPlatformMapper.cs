@@ -24,7 +24,7 @@ public static class MediaPlatformMapper
     public static string ToDisplayName(SubscriptionPlan plan) =>
         plan switch
         {
-            SubscriptionPlan.Free => "رایگان",
+            SubscriptionPlan.Free => "آزمایشی",
             SubscriptionPlan.Bronze => "برنز",
             SubscriptionPlan.Silver => "نقره‌ای",
             SubscriptionPlan.Golden => "طلایی",

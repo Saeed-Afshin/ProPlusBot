@@ -8,6 +8,9 @@ public class BotSetting
     public bool IsActive { get; set; } = true;
     public bool YouTubeEnabled { get; set; } = true;
     public bool PinterestEnabled { get; set; } = true;
+    public int SearchGridColumns { get; set; } = 3;
+    public int SearchGridRows { get; set; } = 3;
+    public int SearchGridJpegQuality { get; set; } = 85;
     public string? WebhookUrl { get; set; }
     public DateTime UpdatedAt { get; set; }
     public Guid? UpdatedByAdminId { get; set; }

@@ -188,16 +188,19 @@ public class SubscriptionBotHandler(
         else
             lines.Add($"انقضا: {PersianDateTimeHelper.ToShamsiDateString(summary.PlanExpiresAt)} {PersianDateTimeHelper.ToTimeString(summary.PlanExpiresAt)} (تهران)");
 
-        lines.Add(summary.IsBanned ? "وضعیت: مسدود" : "وضعیت: فعال");
-        lines.Add($"تازه‌سازی روزانه: نیمه‌شب به وقت تهران ({PersianDateTimeHelper.ToShamsiDateFromTehranLocal(IranTime.NowLocal)})");
+        if (!summary.HasSubscriptionAccess)
+            lines.Add("وضعیت: دوره آزمایشی پایان یافته");
+        else
+            lines.Add(summary.IsBanned ? "وضعیت: مسدود" : summary.IsTrialActive ? "وضعیت: آزمایشی فعال" : "وضعیت: فعال");
+
         lines.Add($"تازه‌سازی ماهانه: اول هر ماه به وقت تهران ({PersianDateTimeHelper.ToShamsiMonthYearFromTehranLocal(IranTime.NowLocal)})");
         lines.Add(string.Empty);
 
         foreach (var q in summary.Quotas)
         {
             lines.Add($"▫️ {MediaPlatformMapper.ToDisplayName(q.Platform)}");
-            lines.Add($"  روزانه: {q.DailyCountUsed}/{q.DailyCountLimit} دانلود، {ByteUnits.FormatMegabytes(q.DailyBytesUsed)}/{ByteUnits.FormatMegabytes(q.DailyBytesLimit)}");
-            lines.Add($"  ماهانه: {q.MonthlyCountUsed}/{q.MonthlyCountLimit} دانلود، {ByteUnits.FormatMegabytes(q.MonthlyBytesUsed)}/{ByteUnits.FormatMegabytes(q.MonthlyBytesLimit)}");
+            lines.Add($"  دانلود ماهانه: {q.MonthlyDownloadCountUsed}/{q.MonthlyDownloadCountLimit}، {ByteUnits.FormatMegabytes(q.MonthlyBytesUsed)}/{ByteUnits.FormatMegabytes(q.MonthlyBytesLimit)}");
+            lines.Add($"  جستجو ماهانه: {q.MonthlySearchUsed}/{q.MonthlySearchLimit}");
             lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatMegabytes(q.MaxFileBytesLimit)}");
             if (q.ExtraCountRemaining > 0 || q.ExtraBytesRemaining > 0)
                 lines.Add($"  سهمیه اضافه: {q.ExtraCountRemaining} دانلود، {ByteUnits.FormatMegabytes(q.ExtraBytesRemaining)}");
@@ -242,7 +245,7 @@ public class SubscriptionBotHandler(
 
         await fileSender.SendTextAsync(bot, userId, string.Join('\n', lines), ct);
 
-        if (summary.ReservedPlans.Count > 0 && summary.EffectivePlan == SubscriptionPlan.Free)
+        if (summary.ReservedPlans.Count > 0 && summary.IsTrialActive)
             await SendReservedPlanButtonsAsync(bot, userId, summary.ReservedPlans, ct);
     }
 

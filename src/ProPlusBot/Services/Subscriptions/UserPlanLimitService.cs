@@ -23,6 +23,7 @@ public class UserPlanLimitService(AppDbContext db)
         var userByKey = userLimits.ToDictionary(l => (l.Platform, l.Period, l.LimitKind));
 
         return planLimits
+            .Where(l => l.LimitKind == QuotaLimitKind.MaxFileBytes || l.Period == UsagePeriod.Monthly)
             .Select(l =>
             {
                 var key = (l.Platform, l.Period, l.LimitKind);

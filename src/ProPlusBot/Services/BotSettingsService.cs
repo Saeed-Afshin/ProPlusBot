@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
+using ProPlusBot.Services.Media;
 
 namespace ProPlusBot.Services;
 
@@ -10,7 +11,7 @@ public class BotSettingsService(AppDbContext db)
     {
         var settings = await db.BotSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         if (settings is not null)
-            return settings;
+            return Normalize(settings);
 
         settings = new BotSetting
         {
@@ -20,6 +21,9 @@ public class BotSettingsService(AppDbContext db)
             IsActive = true,
             YouTubeEnabled = true,
             PinterestEnabled = true,
+            SearchGridColumns = 3,
+            SearchGridRows = 3,
+            SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
             UpdatedAt = DateTime.UtcNow
         };
         db.BotSettings.Add(settings);
@@ -34,6 +38,9 @@ public class BotSettingsService(AppDbContext db)
         string? webhookUrl,
         bool? youtubeEnabled,
         bool? pinterestEnabled,
+        int? searchGridColumns,
+        int? searchGridRows,
+        int? searchGridJpegQuality,
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
@@ -56,9 +63,30 @@ public class BotSettingsService(AppDbContext db)
         if (pinterestEnabled.HasValue)
             settings.PinterestEnabled = pinterestEnabled.Value;
 
+        if (searchGridColumns.HasValue || searchGridRows.HasValue)
+        {
+            var (cols, rows) = SearchGridPresets.Normalize(
+                searchGridColumns ?? settings.SearchGridColumns,
+                searchGridRows ?? settings.SearchGridRows);
+            settings.SearchGridColumns = cols;
+            settings.SearchGridRows = rows;
+        }
+
+        if (searchGridJpegQuality.HasValue)
+            settings.SearchGridJpegQuality = SearchGridPresets.NormalizeJpegQuality(searchGridJpegQuality.Value);
+
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;
         await db.SaveChangesAsync(ct);
+        return Normalize(settings);
+    }
+
+    private static BotSetting Normalize(BotSetting settings)
+    {
+        var (cols, rows) = SearchGridPresets.Normalize(settings.SearchGridColumns, settings.SearchGridRows);
+        settings.SearchGridColumns = cols;
+        settings.SearchGridRows = rows;
+        settings.SearchGridJpegQuality = SearchGridPresets.NormalizeJpegQuality(settings.SearchGridJpegQuality);
         return settings;
     }
 }

@@ -92,7 +92,7 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         if (targetPlan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن رایگان قابل خرید نیست.");
+            throw new InvalidOperationException("پلن آزمایشی قابل خرید نیست.");
 
         var amountToman = await GetPlanPurchasePriceAsync(targetPlan, ct);
 
@@ -244,7 +244,7 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         if (user.Plan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن رایگان تاریخ انقضا ندارد.");
+            throw new InvalidOperationException("پلن آزمایشی از پنل ادمین قابل تمدید است.");
 
         var baseDate = user.PlanExpiresAt is null || user.PlanExpiresAt < DateTime.UtcNow
             ? DateTime.UtcNow

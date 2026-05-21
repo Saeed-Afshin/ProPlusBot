@@ -18,6 +18,7 @@ public class BotUser
 
     public ICollection<ChatMessage> Messages { get; set; } = [];
     public ICollection<DownloadUsageLog> DownloadUsages { get; set; } = [];
+    public ICollection<SearchUsageLog> SearchUsages { get; set; } = [];
     public ICollection<PaymentRecord> Payments { get; set; } = [];
     public ICollection<UserQuotaAdjustment> QuotaAdjustments { get; set; } = [];
     public ICollection<UserReservedPlan> ReservedPlans { get; set; } = [];

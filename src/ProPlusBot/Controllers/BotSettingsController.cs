@@ -17,7 +17,16 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
     {
         var s = await settingsService.GetAsync(ct);
         return Ok(new BotSettingsDto(
-            s.Mode, s.UpdateMode, s.IsActive, s.YouTubeEnabled, s.PinterestEnabled, s.WebhookUrl, s.UpdatedAt));
+            s.Mode,
+            s.UpdateMode,
+            s.IsActive,
+            s.YouTubeEnabled,
+            s.PinterestEnabled,
+            s.SearchGridColumns,
+            s.SearchGridRows,
+            s.SearchGridJpegQuality,
+            s.WebhookUrl,
+            s.UpdatedAt));
     }
 
     [HttpPut]
@@ -34,10 +43,22 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             request.WebhookUrl,
             request.YouTubeEnabled,
             request.PinterestEnabled,
+            request.SearchGridColumns,
+            request.SearchGridRows,
+            request.SearchGridJpegQuality,
             User.GetAdminId(),
             ct);
 
         return Ok(new BotSettingsDto(
-            s.Mode, s.UpdateMode, s.IsActive, s.YouTubeEnabled, s.PinterestEnabled, s.WebhookUrl, s.UpdatedAt));
+            s.Mode,
+            s.UpdateMode,
+            s.IsActive,
+            s.YouTubeEnabled,
+            s.PinterestEnabled,
+            s.SearchGridColumns,
+            s.SearchGridRows,
+            s.SearchGridJpegQuality,
+            s.WebhookUrl,
+            s.UpdatedAt));
     }
 }

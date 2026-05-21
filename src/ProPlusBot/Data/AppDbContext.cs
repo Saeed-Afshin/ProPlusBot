@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserReservedPlan> UserReservedPlans => Set<UserReservedPlan>();
     public DbSet<UserPlanPlatformLimit> UserPlanPlatformLimits => Set<UserPlanPlatformLimit>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+    public DbSet<TrialSettings> TrialSettings => Set<TrialSettings>();
+    public DbSet<SearchUsageLog> SearchUsageLogs => Set<SearchUsageLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +56,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.WebhookUrl).HasMaxLength(512);
+            e.Property(x => x.SearchGridColumns).HasDefaultValue(3);
+            e.Property(x => x.SearchGridRows).HasDefaultValue(3);
+            e.Property(x => x.SearchGridJpegQuality).HasDefaultValue(85);
+        });
+
+        modelBuilder.Entity<TrialSettings>(e =>
+        {
+            e.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<SearchUsageLog>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TelegramUserId, x.Platform, x.CreatedAt });
+            e.HasOne(x => x.User)
+                .WithMany(u => u.SearchUsages)
+                .HasForeignKey(x => x.TelegramUserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<OtpSession>(e =>

@@ -2,7 +2,8 @@ namespace ProPlusBot.Services.Media;
 
 public static class MediaConstants
 {
-    public const int SearchResultsPerPage = 9;
+    /// <summary>Maximum grid cells (5×5). Actual page size comes from bot settings.</summary>
+    public const int MaxSearchResultsPerPage = 25;
 
     public const string YouTubeSearchButtonText = "جستجوی یوتیوب";
     public const string PinterestSearchButtonText = "جستجوی پینترست";

@@ -4,14 +4,12 @@ namespace ProPlusBot.Models;
 
 public record QuotaUsageDto(
     MediaPlatformKind Platform,
-    long DailyCountUsed,
-    long DailyCountLimit,
-    long MonthlyCountUsed,
-    long MonthlyCountLimit,
-    long DailyBytesUsed,
-    long DailyBytesLimit,
+    long MonthlyDownloadCountUsed,
+    long MonthlyDownloadCountLimit,
     long MonthlyBytesUsed,
     long MonthlyBytesLimit,
+    long MonthlySearchUsed,
+    long MonthlySearchLimit,
     long MaxFileBytesLimit,
     int ExtraCountRemaining,
     long ExtraBytesRemaining);
@@ -24,6 +22,8 @@ public record UserAccountSummaryDto(
     SubscriptionPlan StoredPlan,
     DateTime? PlanExpiresAt,
     bool IsBanned,
+    bool HasSubscriptionAccess,
+    bool IsTrialActive,
     IReadOnlyList<QuotaUsageDto> Quotas,
     IReadOnlyList<ReservedPlanDto> ReservedPlans);
 
@@ -59,3 +59,5 @@ public record BotUserAdminDto(
     DateTime? PlanExpiresAt,
     bool IsBanned,
     DateTime CreatedAt);
+
+public record TrialSettingsDto(int DurationDays);

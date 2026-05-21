@@ -11,7 +11,8 @@ public class PinterestSearchService(
 
     public async Task<PinterestSearchPage> SearchPageAsync(
         string query,
-        string? bookmark = null,
+        string? bookmark,
+        int pageSize,
         CancellationToken ct = default)
     {
         var requestPayload = JsonSerializer.Serialize(new
@@ -50,7 +51,8 @@ public class PinterestSearchService(
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
 
-        var items = ParseResults(document.RootElement, MediaConstants.SearchResultsPerPage);
+        pageSize = Math.Clamp(pageSize, 1, MediaConstants.MaxSearchResultsPerPage);
+        var items = ParseResults(document.RootElement, pageSize);
         var nextBookmark = TryGetNextBookmark(document.RootElement);
         return new PinterestSearchPage(items, nextBookmark);
     }

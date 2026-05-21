@@ -36,5 +36,16 @@
         <input asp-for="PinterestEnabled" class="form-check-input" />
         <label asp-for="PinterestEnabled" class="form-check-label">پینترست (جستجو و دانلود لینک)</label>
     </div>
+    <hr class="my-4" />
+    <h2 class="h5 mb-3">نمایش نتایج جستجو</h2>
+    <div class="mb-3">
+        <label class="form-label" asp-for="SearchGridPreset">اندازه گرید (ستون × سطر)</label>
+        <select asp-for="SearchGridPreset" class="form-select" asp-items="@(new SelectList(Model.SearchGridPresetOptions))"></select>
+        <div class="form-text">هر صفحه جستجو تا این تعداد نتیجه نشان می‌دهد (مثلاً ۳×۴ یعنی ۱۲ نتیجه).</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" asp-for="SearchGridJpegQuality">کیفیت تصویر گرید (۱ تا ۱۰۰)</label>
+        <input asp-for="SearchGridJpegQuality" type="number" class="form-control" min="40" max="100" />
+    </div>
     <button type="submit" class="btn btn-primary">ذخیره</button>
 </form>

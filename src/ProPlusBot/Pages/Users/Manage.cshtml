@@ -47,10 +47,9 @@
                     <thead class="table-light">
                     <tr>
                         <th>پلتفرم</th>
-                        <th>دانلود روزانه</th>
-                        <th>حجم روزانه</th>
                         <th>دانلود ماهانه</th>
                         <th>حجم ماهانه</th>
+                        <th>جستجو ماهانه</th>
                         <th>حداکثر فایل</th>
                         <th>سهمیه اضافه</th>
                     </tr>
@@ -60,10 +59,9 @@
                     {
                         <tr>
                             <td>@MediaPlatformMapper.ToDisplayName(q.Platform)</td>
-                            <td dir="ltr">@q.DailyCountUsed / @q.DailyCountLimit</td>
-                            <td dir="ltr">@ByteUnits.FormatMegabytes(q.DailyBytesUsed) / @ByteUnits.FormatMegabytes(q.DailyBytesLimit)</td>
-                            <td dir="ltr">@q.MonthlyCountUsed / @q.MonthlyCountLimit</td>
+                            <td dir="ltr">@q.MonthlyDownloadCountUsed / @q.MonthlyDownloadCountLimit</td>
                             <td dir="ltr">@ByteUnits.FormatMegabytes(q.MonthlyBytesUsed) / @ByteUnits.FormatMegabytes(q.MonthlyBytesLimit)</td>
+                            <td dir="ltr">@q.MonthlySearchUsed / @q.MonthlySearchLimit</td>
                             <td dir="ltr">@ByteUnits.FormatMegabytes(q.MaxFileBytesLimit)</td>
                             <td dir="ltr">
                                 @if (q.ExtraCountRemaining > 0 || q.ExtraBytesRemaining > 0)
@@ -128,9 +126,7 @@
                         <thead class="table-light">
                         <tr>
                             <th>پلتفرم</th>
-                            <th>دوره</th>
-                            <th>نوع</th>
-                            <th>واحد</th>
+                            <th>محدودیت ماهانه</th>
                             <th>مقدار</th>
                             <th></th>
                         </tr>
@@ -142,9 +138,7 @@
                             var rowFormId = $"limit-{Model.EditUserId}-{(int)row.Platform}-{(int)row.Period}-{(int)row.LimitKind}";
                             <tr class="@(row.IsCustom ? "table-warning" : null)">
                                 <td>@PlanLimitDisplay.PlatformLabel(row.Platform)</td>
-                                <td>@PlanLimitDisplay.PeriodLabel(row.Period, row.LimitKind)</td>
-                                <td>@PlanLimitDisplay.TypeLabel(row.LimitKind)</td>
-                                <td>@PlanLimitDisplay.UnitLabel(row.LimitKind)</td>
+                                <td>@PlanLimitDisplay.MonthlyLimitLabel(row.LimitKind)</td>
                                 <td>
                                     <input form="@rowFormId" type="number" name="value" value="@row.DisplayValue"
                                            class="form-control form-control-sm" min="0"

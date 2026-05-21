@@ -30,6 +30,7 @@ public class SubscriptionAdminService(AppDbContext db)
     {
         var limits = await GetLimitsAsync(ct);
         var rows = limits
+            .Where(l => l.LimitKind == QuotaLimitKind.MaxFileBytes || l.Period == UsagePeriod.Monthly)
             .GroupBy(l => (l.Platform, l.Period, l.LimitKind))
             .Select(g =>
             {

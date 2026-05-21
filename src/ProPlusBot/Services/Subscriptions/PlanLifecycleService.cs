@@ -17,15 +17,26 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
 {
     private readonly PaymentOptions _paymentOptions = paymentOptions.Value;
 
-    public static bool IsPlanActive(BotUser user) =>
+    public static bool IsPaidPlanActive(BotUser user) =>
         user.Plan != SubscriptionPlan.Free
         && user.PlanExpiresAt is not null
         && user.PlanExpiresAt > DateTime.UtcNow;
 
+    public static bool IsTrialActive(BotUser user) =>
+        user.Plan == SubscriptionPlan.Free
+        && user.PlanExpiresAt is not null
+        && user.PlanExpiresAt > DateTime.UtcNow;
+
+    public static bool HasSubscriptionAccess(BotUser user) =>
+        IsPaidPlanActive(user) || IsTrialActive(user);
+
+    /// <summary>Legacy alias for paid plans only.</summary>
+    public static bool IsPlanActive(BotUser user) => IsPaidPlanActive(user);
+
     public async Task EnsurePlanStateCurrentAsync(long telegramUserId, CancellationToken ct = default)
     {
         var user = await db.BotUsers.FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct);
-        if (user is null || IsPlanActive(user) || user.Plan == SubscriptionPlan.Free)
+        if (user is null || IsPaidPlanActive(user) || user.Plan == SubscriptionPlan.Free)
             return;
 
         await ActivateNextReservedOrSetFreeAsync(user, ct);
@@ -37,7 +48,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
         bool isUpgradePayment,
         CancellationToken ct = default)
     {
-        if (!IsPlanActive(user))
+        if (!IsPaidPlanActive(user))
         {
             await ActivatePlanAsync(user, targetPlan, _paymentOptions.PlanDurationDays, ct);
             return PlanFulfillmentResult.Activated;
@@ -60,7 +71,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
         CancellationToken ct = default)
     {
         if (plan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن رایگان قابل رزرو نیست.");
+            throw new InvalidOperationException("پلن آزمایشی قابل رزرو نیست.");
 
         db.UserReservedPlans.Add(new UserReservedPlan
         {
@@ -90,7 +101,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
         if (reserved is null)
             return false;
 
-        if (IsPlanActive(user))
+        if (IsPaidPlanActive(user))
             return false;
 
         db.UserReservedPlans.Remove(reserved);

@@ -12,10 +12,11 @@ public class YtDlpService(
 
     public async Task<IReadOnlyList<MediaSearchResultItem>> SearchYouTubeAsync(
         string query,
-        int pageIndex = 0,
+        int pageIndex,
+        int pageSize,
         CancellationToken ct = default)
     {
-        var pageSize = MediaConstants.SearchResultsPerPage;
+        pageSize = Math.Clamp(pageSize, 1, MediaConstants.MaxSearchResultsPerPage);
         var skip = pageIndex * pageSize;
         var fetchCount = skip + pageSize;
         var searchUrl = $"ytsearch{fetchCount}:{query}";

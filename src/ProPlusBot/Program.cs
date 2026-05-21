@@ -62,6 +62,7 @@ builder.Services.AddScoped<UserPlanLimitService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<BalePaymentService>();
 builder.Services.AddScoped<SubscriptionAdminService>();
+builder.Services.AddScoped<TrialSettingsService>();
 builder.Services.AddScoped<ErrorLogService>();
 builder.Services.AddScoped<ErrorLogAdminService>();
 builder.Services.AddScoped<SubscriptionBotHandler>();

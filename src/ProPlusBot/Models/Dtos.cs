@@ -12,6 +12,9 @@ public record BotSettingsDto(
     bool IsActive,
     bool YouTubeEnabled,
     bool PinterestEnabled,
+    int SearchGridColumns,
+    int SearchGridRows,
+    int SearchGridJpegQuality,
     string? WebhookUrl,
     DateTime UpdatedAt);
 
@@ -21,6 +24,9 @@ public record UpdateBotSettingsRequest(
     bool? IsActive,
     bool? YouTubeEnabled,
     bool? PinterestEnabled,
+    int? SearchGridColumns,
+    int? SearchGridRows,
+    int? SearchGridJpegQuality,
     string? WebhookUrl);
 
 public record ChatMessageDto(long Id, long TelegramUserId, MessageDirection Direction, string? Text, string MessageType, DateTime CreatedAt);

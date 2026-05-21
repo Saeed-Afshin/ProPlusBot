@@ -133,6 +133,14 @@ public class BotUpdateHandler(
         if (await subscriptionHandler.TryHandleMessageAsync(bot, message, ct))
             return;
 
+        if (!privileged && !await userAccess.HasSubscriptionAccessAsync(userId, ct))
+        {
+            await SendAndStoreAsync(bot, userId,
+                $"{SubscriptionMessages.TrialExpired}\nاز «{SubscriptionBotHandler.BuyPlanButtonText}» یا «{SubscriptionBotHandler.UpgradeButtonText}» استفاده کنید.",
+                ct);
+            return;
+        }
+
         if (await mediaHandler.TryHandleMessageAsync(bot, message, ct))
             return;
 
@@ -176,12 +184,14 @@ public class BotUpdateHandler(
         if (!privileged && await IsBannedAsync(userId, ct))
             return;
 
-        if (IsMediaSearchCallback(callback.Data)
-            && await mediaHandler.HandleCallbackQueryAsync(callback, ct))
-            return;
-
         if (await subscriptionHandler.HandleCallbackQueryAsync(callback, ct))
             return;
+
+        if (!privileged && !await userAccess.HasSubscriptionAccessAsync(userId, ct))
+        {
+            await SendAndStoreAsync(bot, userId, SubscriptionMessages.TrialExpired, ct);
+            return;
+        }
 
         if (await mediaHandler.HandleCallbackQueryAsync(callback, ct))
             return;

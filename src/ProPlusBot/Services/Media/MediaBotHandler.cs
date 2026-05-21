@@ -19,6 +19,7 @@ public class MediaBotHandler(
     QuotaService quotaService,
     UserAccessService userAccess,
     BotFeatureService botFeatures,
+    BotSettingsService botSettingsService,
     ILogger<MediaBotHandler> logger)
 {
     public async Task<bool> HandleCallbackQueryAsync(CallbackQuery callback, CancellationToken ct)
@@ -47,6 +48,9 @@ public class MediaBotHandler(
             }
 
             if (!await CanUsePlatformAsync(bot, userId, session.Platform, ct))
+                return true;
+
+            if (!await CheckSearchQuotaAsync(bot, userId, session.Platform, ct))
                 return true;
 
             await LoadAndSendSearchPageAsync(bot, userId, session, session.Page + 1, ct);
@@ -187,10 +191,14 @@ public class MediaBotHandler(
         DetectedMediaPlatform platform,
         CancellationToken ct)
     {
+        if (!await CheckSearchQuotaAsync(bot, userId, platform, ct))
+            return;
+
         conversationState.SetState(userId, MediaConversationState.Idle);
         await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
 
-        var session = await FetchSearchPageAsync(query, platform, page: 0, pinterestBookmark: null, ct);
+        var gridLayout = await GetSearchGridLayoutAsync(ct);
+        var session = await FetchSearchPageAsync(query, platform, page: 0, pinterestBookmark: null, gridLayout, ct);
         if (session is null || session.Results.Count == 0)
         {
             var platformName = platform == DetectedMediaPlatform.YouTube ? "یوتیوب" : "پینترست";
@@ -217,6 +225,7 @@ public class MediaBotHandler(
             current.Platform,
             nextPage,
             current.PinterestBookmark,
+            current.GridLayout,
             ct);
 
         if (session is null || session.Results.Count == 0)
@@ -234,13 +243,14 @@ public class MediaBotHandler(
         DetectedMediaPlatform platform,
         int page,
         string? pinterestBookmark,
+        SearchGridLayout gridLayout,
         CancellationToken ct)
     {
-        var pageSize = MediaConstants.SearchResultsPerPage;
+        var pageSize = gridLayout.PageSize;
 
         if (platform == DetectedMediaPlatform.YouTube)
         {
-            var results = await ytDlp.SearchYouTubeAsync(query, page, ct);
+            var results = await ytDlp.SearchYouTubeAsync(query, page, pageSize, ct);
             return new MediaSearchSession(
                 query,
                 page,
@@ -248,12 +258,13 @@ public class MediaBotHandler(
                 HasMoreResults: results.Count == pageSize,
                 MediaConstants.CallbackYouTubePrefix,
                 platform,
-                PinterestBookmark: null);
+                PinterestBookmark: null,
+                gridLayout);
         }
 
         if (platform == DetectedMediaPlatform.Pinterest)
         {
-            var pinPage = await pinterestSearch.SearchPageAsync(query, pinterestBookmark, ct);
+            var pinPage = await pinterestSearch.SearchPageAsync(query, pinterestBookmark, pageSize, ct);
             var hasMore = pinPage.Items.Count == pageSize && !string.IsNullOrWhiteSpace(pinPage.NextBookmark);
             return new MediaSearchSession(
                 query,
@@ -262,10 +273,45 @@ public class MediaBotHandler(
                 hasMore,
                 MediaConstants.CallbackPinterestPrefix,
                 platform,
-                pinPage.NextBookmark);
+                pinPage.NextBookmark,
+                gridLayout);
         }
 
         return null;
+    }
+
+    private async Task<SearchGridLayout> GetSearchGridLayoutAsync(CancellationToken ct)
+    {
+        var settings = await botSettingsService.GetAsync(ct);
+        var (cols, rows) = SearchGridPresets.Normalize(settings.SearchGridColumns, settings.SearchGridRows);
+        return new SearchGridLayout(cols, rows, settings.SearchGridJpegQuality);
+    }
+
+    private async Task<bool> CheckSearchQuotaAsync(
+        ITelegramBotClient bot,
+        long userId,
+        DetectedMediaPlatform platform,
+        CancellationToken ct)
+    {
+        if (!await userAccess.HasSubscriptionAccessAsync(userId, ct))
+        {
+            await fileSender.SendTextAsync(bot, userId, SubscriptionMessages.TrialExpired, ct);
+            return false;
+        }
+
+        if (await userAccess.IsPrivilegedUserAsync(userId, ct))
+            return true;
+
+        var kind = MediaPlatformMapper.ToKind(platform);
+        var (allowed, message) = await quotaService.CanSearchAsync(userId, kind, ct);
+        if (allowed)
+        {
+            await quotaService.RecordSearchAsync(userId, kind, ct);
+            return true;
+        }
+
+        await fileSender.SendTextAsync(bot, userId, message ?? "امکان جستجو وجود ندارد.", ct);
+        return false;
     }
 
     private async Task SendSearchResultsPageAsync(
@@ -280,7 +326,7 @@ public class MediaBotHandler(
 
         var markup = BuildSearchKeyboard(session);
 
-        var gridJpeg = await gridComposer.CreateGridJpegAsync(session.Results, ct);
+        var gridJpeg = await gridComposer.CreateGridJpegAsync(session.Results, session.GridLayout, ct);
         if (gridJpeg is not null
             && await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, markup, ct))
         {
@@ -296,35 +342,35 @@ public class MediaBotHandler(
 
     private static InlineKeyboardMarkup BuildSearchKeyboard(MediaSearchSession session)
     {
-        var rows = new List<InlineKeyboardButton[]>();
+        var keyboardRows = new List<InlineKeyboardButton[]>();
         var itemCount = session.Results.Count;
+        if (itemCount == 0)
+            return new InlineKeyboardMarkup(keyboardRows);
 
-        for (var row = 0; row < 3; row++)
+        var columns = session.GridLayout.Columns;
+        var usedRows = (itemCount + columns - 1) / columns;
+
+        for (var row = 0; row < usedRows; row++)
         {
-            var buttonRow = new InlineKeyboardButton[3];
-            for (var col = 0; col < 3; col++)
+            var buttonRow = new List<InlineKeyboardButton>();
+            for (var col = 0; col < columns; col++)
             {
-                var slot = row * 3 + col;
-                if (slot < itemCount)
-                {
-                    buttonRow[col] = InlineKeyboardButton.WithCallbackData(
-                        (slot + 1).ToString(CultureInfo.InvariantCulture),
-                        $"{session.CallbackPrefix}{slot}");
-                }
-                else
-                {
-                    buttonRow[col] = InlineKeyboardButton.WithCallbackData(
-                        " ",
-                        $"{session.CallbackPrefix}x");
-                }
+                var slot = row * columns + col;
+                if (slot >= itemCount)
+                    continue;
+
+                buttonRow.Add(InlineKeyboardButton.WithCallbackData(
+                    (slot + 1).ToString(CultureInfo.InvariantCulture),
+                    $"{session.CallbackPrefix}{slot}"));
             }
 
-            rows.Add(buttonRow);
+            if (buttonRow.Count > 0)
+                keyboardRows.Add(buttonRow.ToArray());
         }
 
         if (session.HasMoreResults)
         {
-            rows.Add(
+            keyboardRows.Add(
             [
                 InlineKeyboardButton.WithCallbackData(
                     MediaConstants.NextPageButtonText,
@@ -332,7 +378,7 @@ public class MediaBotHandler(
             ]);
         }
 
-        return new InlineKeyboardMarkup(rows);
+        return new InlineKeyboardMarkup(keyboardRows);
     }
 
     private static bool TryParseSearchNextCallback(string data, out string prefix)
@@ -413,6 +459,12 @@ public class MediaBotHandler(
         if (!await botFeatures.CanUsePlatformAsync(userId, platform, ct))
         {
             await fileSender.SendTextAsync(bot, userId, BotFeatureService.DisabledMessage(platform), ct);
+            return;
+        }
+
+        if (!await userAccess.HasSubscriptionAccessAsync(userId, ct))
+        {
+            await fileSender.SendTextAsync(bot, userId, SubscriptionMessages.TrialExpired, ct);
             return;
         }
 

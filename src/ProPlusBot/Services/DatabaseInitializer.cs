@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
+using ProPlusBot.Services.Media;
 using ProPlusBot.Services.Subscriptions;
 
 namespace ProPlusBot.Services;
 
-public class DatabaseInitializer(AppDbContext db)
+public class DatabaseInitializer(AppDbContext db, TrialSettingsService trialSettings)
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -21,9 +22,17 @@ public class DatabaseInitializer(AppDbContext db)
                 IsActive = true,
                 YouTubeEnabled = true,
                 PinterestEnabled = true,
+                SearchGridColumns = 3,
+                SearchGridRows = 3,
+                SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
                 UpdatedAt = DateTime.UtcNow
             });
         }
+
+        await trialSettings.GetAsync(ct);
+
+        await RemoveObsoleteDailyLimitsAsync(ct);
+        await EnsureSearchLimitsAsync(ct);
 
         if (!await db.PlanPlatformLimits.AnyAsync(ct))
             db.PlanPlatformLimits.AddRange(SubscriptionSeedData.DefaultLimits());
@@ -45,7 +54,34 @@ public class DatabaseInitializer(AppDbContext db)
             });
         }
 
+        await AssignTrialExpiryToUsersWithoutAsync(ct);
         await db.SaveChangesAsync(ct);
+    }
+
+    private async Task RemoveObsoleteDailyLimitsAsync(CancellationToken ct)
+    {
+        await db.PlanPlatformLimits
+            .Where(l => l.Period == UsagePeriod.Daily && l.LimitKind != QuotaLimitKind.MaxFileBytes)
+            .ExecuteDeleteAsync(ct);
+
+        await db.UserPlanPlatformLimits
+            .Where(l => l.Period == UsagePeriod.Daily && l.LimitKind != QuotaLimitKind.MaxFileBytes)
+            .ExecuteDeleteAsync(ct);
+    }
+
+    private async Task EnsureSearchLimitsAsync(CancellationToken ct)
+    {
+        foreach (var seed in SubscriptionSeedData.DefaultSearchLimits())
+        {
+            var exists = await db.PlanPlatformLimits.AnyAsync(l =>
+                l.Plan == seed.Plan
+                && l.Platform == seed.Platform
+                && l.Period == seed.Period
+                && l.LimitKind == QuotaLimitKind.SearchCount, ct);
+
+            if (!exists)
+                db.PlanPlatformLimits.Add(seed);
+        }
     }
 
     private async Task EnsureMaxFileLimitsAsync(CancellationToken ct)
@@ -59,6 +95,21 @@ public class DatabaseInitializer(AppDbContext db)
 
             if (!exists)
                 db.PlanPlatformLimits.Add(seed);
+        }
+    }
+
+    private async Task AssignTrialExpiryToUsersWithoutAsync(CancellationToken ct)
+    {
+        var trialDays = (await trialSettings.GetAsync(ct)).DurationDays;
+        var users = await db.BotUsers
+            .Where(u => u.Plan == SubscriptionPlan.Free && u.PlanExpiresAt == null)
+            .ToListAsync(ct);
+
+        var expiresAt = DateTime.UtcNow.AddDays(trialDays);
+        foreach (var user in users)
+        {
+            user.PlanExpiresAt = expiresAt;
+            user.UpdatedAt = DateTime.UtcNow;
         }
     }
 }

@@ -6,10 +6,10 @@ using ProPlusBot.Entities;
 using ProPlusBot.Models;
 using ProPlusBot.Services.Subscriptions;
 
-namespace ProPlusBot.Pages.Pricing;
+namespace ProPlusBot.Pages.Plans;
 
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
-public class IndexModel(SubscriptionAdminService adminService) : PageModel
+public class IndexModel(SubscriptionAdminService adminService, TrialSettingsService trialSettings) : PageModel
 {
     private static readonly SubscriptionPlan[] PlanColumnOrder =
     [
@@ -23,7 +23,11 @@ public class IndexModel(SubscriptionAdminService adminService) : PageModel
     public List<PlanLimitMatrixRow> LimitRows { get; set; } = [];
     public Dictionary<SubscriptionPlan, long> PlanPrices { get; set; } = new();
     public Entities.ExtraQuotaPackSettings ExtraPack { get; set; } = null!;
+    public int TrialDurationDays { get; set; } = 7;
     public string? SuccessMessage { get; set; }
+
+    [BindProperty]
+    public int PostedTrialDurationDays { get; set; } = 7;
 
     [BindProperty]
     public Dictionary<int, long> PostedPlanPrices { get; set; } = new();
@@ -78,6 +82,16 @@ public class IndexModel(SubscriptionAdminService adminService) : PageModel
         return await ReloadAsync(ct);
     }
 
+    public async Task<IActionResult> OnPostSaveTrialAsync(CancellationToken ct)
+    {
+        if (!User.CanAccessAdminPanel())
+            return RedirectToPage("/Login");
+
+        await trialSettings.UpdateDurationDaysAsync(PostedTrialDurationDays, ct);
+        SuccessMessage = "تنظیمات دوره آزمایشی ذخیره شد.";
+        return await ReloadAsync(ct);
+    }
+
     public async Task<IActionResult> OnPostSaveExtraAsync(CancellationToken ct)
     {
         if (!User.CanAccessAdminPanel())
@@ -107,10 +121,12 @@ public class IndexModel(SubscriptionAdminService adminService) : PageModel
                 PlanPrices[plan] = 0;
         }
 
+        TrialDurationDays = (await trialSettings.GetAsync(ct)).DurationDays;
+        PostedTrialDurationDays = TrialDurationDays;
+
         ExtraPack = await adminService.GetExtraPackAsync(ct);
         ExtraPrice = ExtraPack.PriceToman;
         ExtraCount = ExtraPack.ExtraDownloadCount;
         ExtraMegabytes = ByteUnits.ToMegabytes(ExtraPack.ExtraDownloadBytes);
     }
-
 }
