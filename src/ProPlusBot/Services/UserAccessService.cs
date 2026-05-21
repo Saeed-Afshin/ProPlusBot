@@ -89,41 +89,57 @@ public class UserAccessService(
         long telegramUserId,
         CancellationToken ct = default)
     {
+        bool joined;
         try
         {
-            var chatId = new ChatId(_botOptions.RequiredChannelUsername);
-            var member = await bot.GetChatMember(chatId, telegramUserId, ct);
-            var joined = member.Status is ChatMemberStatus.Creator
-                or ChatMemberStatus.Administrator
-                or ChatMemberStatus.Member
-                or ChatMemberStatus.Restricted;
-
-            var user = await db.BotUsers.FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct);
-            if (user is not null)
-            {
-                user.HasJoinedChannel = joined;
-                user.UpdatedAt = DateTime.UtcNow;
-                await db.SaveChangesAsync(ct);
-            }
-
-            return joined;
+            joined = await IsChannelMemberAsync(
+                bot, new ChatId(_botOptions.RequiredChannelUsername), telegramUserId, ct);
         }
         catch
         {
             try
             {
-                var chatId = new ChatId(_botOptions.RequiredChannelId);
-                var member = await bot.GetChatMember(chatId, telegramUserId, ct);
-                return member.Status is ChatMemberStatus.Creator
-                    or ChatMemberStatus.Administrator
-                    or ChatMemberStatus.Member
-                    or ChatMemberStatus.Restricted;
+                joined = await IsChannelMemberAsync(
+                    bot, new ChatId(_botOptions.RequiredChannelId), telegramUserId, ct);
             }
             catch
             {
-                return false;
+                joined = false;
             }
         }
+
+        await PersistChannelMembershipAsync(telegramUserId, joined, ct);
+        return joined;
+    }
+
+    private static async Task<bool> IsChannelMemberAsync(
+        ITelegramBotClient bot,
+        ChatId chatId,
+        long telegramUserId,
+        CancellationToken ct)
+    {
+        var member = await bot.GetChatMember(chatId, telegramUserId, ct);
+        return IsActiveChannelMember(member);
+    }
+
+    private static bool IsActiveChannelMember(ChatMember member) =>
+        member.Status is ChatMemberStatus.Creator
+            or ChatMemberStatus.Administrator
+            or ChatMemberStatus.Member
+            or ChatMemberStatus.Restricted;
+
+    private async Task PersistChannelMembershipAsync(
+        long telegramUserId,
+        bool joined,
+        CancellationToken ct)
+    {
+        var user = await db.BotUsers.FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct);
+        if (user is null)
+            return;
+
+        user.HasJoinedChannel = joined;
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
     }
 
     public const string RestartButtonText = "شروع مجدد";

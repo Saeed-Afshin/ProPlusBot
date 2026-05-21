@@ -51,6 +51,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<BaleBotClientFactory>();
 builder.Services.AddScoped<DatabaseInitializer>();
 builder.Services.AddScoped<BotSettingsService>();
+builder.Services.AddScoped<BotFeatureService>();
 builder.Services.AddScoped<RoleResolverService>();
 builder.Services.AddScoped<ChatStorageService>();
 builder.Services.AddScoped<UserAccessService>();

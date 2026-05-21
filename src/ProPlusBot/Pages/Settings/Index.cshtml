@@ -26,5 +26,15 @@
         <input asp-for="IsActive" class="form-check-input" />
         <label asp-for="IsActive" class="form-check-label">ربات فعال</label>
     </div>
+    <hr class="my-4" />
+    <h2 class="h5 mb-3">قابلیت‌های دانلود</h2>
+    <div class="form-check mb-3">
+        <input asp-for="YouTubeEnabled" class="form-check-input" />
+        <label asp-for="YouTubeEnabled" class="form-check-label">یوتیوب (جستجو و دانلود لینک)</label>
+    </div>
+    <div class="form-check mb-3">
+        <input asp-for="PinterestEnabled" class="form-check-input" />
+        <label asp-for="PinterestEnabled" class="form-check-label">پینترست (جستجو و دانلود لینک)</label>
+    </div>
     <button type="submit" class="btn btn-primary">ذخیره</button>
 </form>

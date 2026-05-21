@@ -71,25 +71,15 @@ public class PinterestSearchService(
 
         foreach (var result in results.EnumerateArray())
         {
-            if (result.TryGetProperty("type", out var typeElement)
-                && typeElement.GetString() == "story")
+            if (result.TryGetProperty("type", out var typeElement))
             {
-                continue;
+                var type = typeElement.GetString();
+                if (type is "story" or "board" or "user" or "article")
+                    continue;
             }
 
-            var pinId = result.TryGetProperty("id", out var idElement)
-                ? idElement.GetString()
-                : null;
-
-            string? link = null;
-            if (result.TryGetProperty("link", out var linkElement))
-                link = linkElement.GetString();
-
-            link ??= pinId is not null
-                ? $"https://www.pinterest.com/pin/{pinId}/"
-                : null;
-
-            if (string.IsNullOrWhiteSpace(link))
+            var link = ResolvePinterestPinUrl(result);
+            if (link is null)
                 continue;
 
             var title = result.TryGetProperty("title", out var titleElement)
@@ -110,6 +100,41 @@ public class PinterestSearchService(
         }
 
         return items;
+    }
+
+    /// <summary>
+    /// Pinterest search returns outbound destinations in <c>link</c> (Instagram, blogs, etc.).
+    /// Downloads must use the pin URL built from <c>id</c> or a Pinterest-only fallback.
+    /// </summary>
+    private static string? ResolvePinterestPinUrl(JsonElement result)
+    {
+        if (result.TryGetProperty("id", out var idElement))
+        {
+            var pinId = idElement.GetString();
+            if (!string.IsNullOrWhiteSpace(pinId))
+                return $"https://www.pinterest.com/pin/{pinId.Trim()}/";
+        }
+
+        foreach (var propertyName in new[] { "url", "link" })
+        {
+            if (!result.TryGetProperty(propertyName, out var urlElement))
+                continue;
+
+            var candidate = urlElement.GetString();
+            if (IsPinterestPinUrl(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static bool IsPinterestPinUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        var detected = MediaUrlDetector.TryDetect(url);
+        return detected is { Platform: DetectedMediaPlatform.Pinterest };
     }
 
     private static string? TryGetThumbnailUrl(JsonElement result)

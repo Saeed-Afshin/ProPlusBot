@@ -16,7 +16,8 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
     public async Task<ActionResult<BotSettingsDto>> Get(CancellationToken ct)
     {
         var s = await settingsService.GetAsync(ct);
-        return Ok(new BotSettingsDto(s.Mode, s.UpdateMode, s.IsActive, s.WebhookUrl, s.UpdatedAt));
+        return Ok(new BotSettingsDto(
+            s.Mode, s.UpdateMode, s.IsActive, s.YouTubeEnabled, s.PinterestEnabled, s.WebhookUrl, s.UpdatedAt));
     }
 
     [HttpPut]
@@ -31,9 +32,12 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             request.UpdateMode,
             request.IsActive,
             request.WebhookUrl,
+            request.YouTubeEnabled,
+            request.PinterestEnabled,
             User.GetAdminId(),
             ct);
 
-        return Ok(new BotSettingsDto(s.Mode, s.UpdateMode, s.IsActive, s.WebhookUrl, s.UpdatedAt));
+        return Ok(new BotSettingsDto(
+            s.Mode, s.UpdateMode, s.IsActive, s.YouTubeEnabled, s.PinterestEnabled, s.WebhookUrl, s.UpdatedAt));
     }
 }

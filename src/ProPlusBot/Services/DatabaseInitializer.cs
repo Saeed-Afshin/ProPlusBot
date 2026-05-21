@@ -19,6 +19,8 @@ public class DatabaseInitializer(AppDbContext db)
                 Mode = BotMode.Live,
                 UpdateMode = BotUpdateMode.LongPolling,
                 IsActive = true,
+                YouTubeEnabled = true,
+                PinterestEnabled = true,
                 UpdatedAt = DateTime.UtcNow
             });
         }

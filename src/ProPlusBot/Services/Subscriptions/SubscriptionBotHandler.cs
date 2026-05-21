@@ -29,26 +29,6 @@ public class SubscriptionBotHandler(
     public const string CallbackExtraPrefix = "sub:ex:";
     public const string CallbackActivateReservedPrefix = "sub:rsv:";
 
-    public static ReplyKeyboardMarkup SubscriptionMainMenuKeyboard() =>
-        new([
-            [
-                new KeyboardButton(MediaConstants.YouTubeSearchButtonText),
-                new KeyboardButton(MediaConstants.PinterestSearchButtonText)
-            ],
-            [
-                new KeyboardButton(AccountButtonText),
-                new KeyboardButton(UpgradeButtonText)
-            ],
-            [
-                new KeyboardButton(BuyPlanButtonText),
-                new KeyboardButton(ExtraQuotaButtonText)
-            ],
-            [new KeyboardButton(UserAccessService.RestartButtonText)]
-        ])
-        {
-            ResizeKeyboard = true
-        };
-
     public async Task<bool> TryHandleMessageAsync(ITelegramBotClient bot, Message message, CancellationToken ct)
     {
         var text = message.Text?.Trim();

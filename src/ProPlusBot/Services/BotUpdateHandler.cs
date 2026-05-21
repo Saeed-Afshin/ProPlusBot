@@ -19,6 +19,7 @@ public class BotUpdateHandler(
     BotSettingsService settingsService,
     ConversationStateService conversationState,
     MediaBotHandler mediaHandler,
+    BotFeatureService botFeatures,
     SubscriptionBotHandler subscriptionHandler,
     BalePaymentService paymentService,
     ErrorLogService errorLog,
@@ -204,7 +205,7 @@ public class BotUpdateHandler(
             await SendAndStoreAsync(bot, userId,
                 "حالت تست: پیام‌های شما (سوپر ادمین / ادمین / تستر) پردازش می‌شوند.",
                 ct,
-                replyMarkup: SubscriptionBotHandler.SubscriptionMainMenuKeyboard(),
+                replyMarkup: await botFeatures.BuildMainMenuKeyboardAsync(userId, ct),
                 useAutoMarkup: false);
             return;
         }
@@ -228,9 +229,9 @@ public class BotUpdateHandler(
         }
 
         await SendAndStoreAsync(bot, userId,
-            "همه شرایط تکمیل است. لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های جستجو استفاده کنید.",
+            await botFeatures.BuildReadyMessageAsync(userId, ct),
             ct,
-            replyMarkup: SubscriptionBotHandler.SubscriptionMainMenuKeyboard(),
+            replyMarkup: await botFeatures.BuildMainMenuKeyboardAsync(userId, ct),
             useAutoMarkup: false);
     }
 
@@ -266,7 +267,7 @@ public class BotUpdateHandler(
         if (!await HasSharedPhoneAsync(userId, ct))
             return null;
 
-        return SubscriptionBotHandler.SubscriptionMainMenuKeyboard();
+        return await botFeatures.BuildMainMenuKeyboardAsync(userId, ct);
     }
 
     private async Task SendAndStoreAsync(

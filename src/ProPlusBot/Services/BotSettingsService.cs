@@ -18,6 +18,8 @@ public class BotSettingsService(AppDbContext db)
             Mode = BotMode.Live,
             UpdateMode = BotUpdateMode.LongPolling,
             IsActive = true,
+            YouTubeEnabled = true,
+            PinterestEnabled = true,
             UpdatedAt = DateTime.UtcNow
         };
         db.BotSettings.Add(settings);
@@ -30,6 +32,8 @@ public class BotSettingsService(AppDbContext db)
         BotUpdateMode? updateMode,
         bool? isActive,
         string? webhookUrl,
+        bool? youtubeEnabled,
+        bool? pinterestEnabled,
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
@@ -47,6 +51,10 @@ public class BotSettingsService(AppDbContext db)
             settings.IsActive = isActive.Value;
         if (webhookUrl is not null)
             settings.WebhookUrl = string.IsNullOrWhiteSpace(webhookUrl) ? null : webhookUrl.Trim();
+        if (youtubeEnabled.HasValue)
+            settings.YouTubeEnabled = youtubeEnabled.Value;
+        if (pinterestEnabled.HasValue)
+            settings.PinterestEnabled = pinterestEnabled.Value;
 
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;

@@ -20,6 +20,12 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
     public bool IsActive { get; set; }
 
     [BindProperty]
+    public bool YouTubeEnabled { get; set; }
+
+    [BindProperty]
+    public bool PinterestEnabled { get; set; }
+
+    [BindProperty]
     public string? WebhookUrl { get; set; }
 
     public string? SuccessMessage { get; set; }
@@ -33,6 +39,8 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
         Mode = s.Mode;
         UpdateMode = s.UpdateMode;
         IsActive = s.IsActive;
+        YouTubeEnabled = s.YouTubeEnabled;
+        PinterestEnabled = s.PinterestEnabled;
         WebhookUrl = s.WebhookUrl;
         return Page();
     }
@@ -42,7 +50,8 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
         if (!User.CanAccessAdminPanel())
             return RedirectToPage("/Login");
 
-        await settingsService.UpdateAsync(Mode, UpdateMode, IsActive, WebhookUrl, User.GetAdminId(), ct);
+        await settingsService.UpdateAsync(
+            Mode, UpdateMode, IsActive, WebhookUrl, YouTubeEnabled, PinterestEnabled, User.GetAdminId(), ct);
         SuccessMessage = "تنظیمات ذخیره شد. برای تغییر حالت دریافت پیام، برنامه را مجدداً راه‌اندازی کنید.";
         return Page();
     }

@@ -6,9 +6,22 @@ public record AdminUserDto(Guid Id, long TelegramUserId, string PhoneNumber, str
 
 public record CreateAdminRequest(long TelegramUserId, string PhoneNumber, string? DisplayName, AdminRole Role);
 
-public record BotSettingsDto(BotMode Mode, BotUpdateMode UpdateMode, bool IsActive, string? WebhookUrl, DateTime UpdatedAt);
+public record BotSettingsDto(
+    BotMode Mode,
+    BotUpdateMode UpdateMode,
+    bool IsActive,
+    bool YouTubeEnabled,
+    bool PinterestEnabled,
+    string? WebhookUrl,
+    DateTime UpdatedAt);
 
-public record UpdateBotSettingsRequest(BotMode? Mode, BotUpdateMode? UpdateMode, bool? IsActive, string? WebhookUrl);
+public record UpdateBotSettingsRequest(
+    BotMode? Mode,
+    BotUpdateMode? UpdateMode,
+    bool? IsActive,
+    bool? YouTubeEnabled,
+    bool? PinterestEnabled,
+    string? WebhookUrl);
 
 public record ChatMessageDto(long Id, long TelegramUserId, MessageDirection Direction, string? Text, string MessageType, DateTime CreatedAt);
 

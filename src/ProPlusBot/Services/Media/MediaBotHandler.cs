@@ -16,6 +16,7 @@ public class MediaBotHandler(
     ChatStorageService chatStorage,
     QuotaService quotaService,
     UserAccessService userAccess,
+    BotFeatureService botFeatures,
     ILogger<MediaBotHandler> logger)
 {
     public async Task<bool> HandleCallbackQueryAsync(CallbackQuery callback, CancellationToken ct)
@@ -41,6 +42,12 @@ public class MediaBotHandler(
         if (callback.Data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal))
         {
             platform = DetectedMediaPlatform.YouTube;
+            if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
+            {
+                conversationState.Clear(userId);
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
+                return true;
+            }
             if (!int.TryParse(callback.Data[MediaConstants.CallbackYouTubePrefix.Length..], out var index)
                 || index < 0 || index >= results.Count)
             {
@@ -54,6 +61,12 @@ public class MediaBotHandler(
         else if (callback.Data.StartsWith(MediaConstants.CallbackPinterestPrefix, StringComparison.Ordinal))
         {
             platform = DetectedMediaPlatform.Pinterest;
+            if (!await botFeatures.CanUsePinterestAsync(userId, ct))
+            {
+                conversationState.Clear(userId);
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
+                return true;
+            }
             if (!int.TryParse(callback.Data[MediaConstants.CallbackPinterestPrefix.Length..], out var index)
                 || index < 0 || index >= results.Count)
             {
@@ -89,6 +102,12 @@ public class MediaBotHandler(
 
         if (text == MediaConstants.YouTubeSearchButtonText)
         {
+            if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
+            {
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
+                return true;
+            }
+
             conversationState.SetState(userId, MediaConversationState.AwaitingYouTubeQuery);
             await fileSender.SendTextAsync(bot, userId,
                 "عبارت جستجو را برای یوتیوب بفرستید:", ct);
@@ -97,6 +116,12 @@ public class MediaBotHandler(
 
         if (text == MediaConstants.PinterestSearchButtonText)
         {
+            if (!await botFeatures.CanUsePinterestAsync(userId, ct))
+            {
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
+                return true;
+            }
+
             conversationState.SetState(userId, MediaConversationState.AwaitingPinterestQuery);
             await fileSender.SendTextAsync(bot, userId,
                 "عبارت جستجو را برای پینترست بفرستید:", ct);
@@ -106,6 +131,13 @@ public class MediaBotHandler(
         var detected = MediaUrlDetector.TryDetect(text);
         if (detected is not null)
         {
+            if (!await botFeatures.CanUsePlatformAsync(userId, detected.Value.Platform, ct))
+            {
+                await fileSender.SendTextAsync(
+                    bot, userId, BotFeatureService.DisabledMessage(detected.Value.Platform), ct);
+                return true;
+            }
+
             conversationState.Clear(userId);
             await TryEnqueueDownloadAsync(
                 bot, userId, detected.Value.Url, detected.Value.Platform, MediaDownloadSource.Url, ct);
@@ -124,12 +156,26 @@ public class MediaBotHandler(
 
         if (state == MediaConversationState.AwaitingYouTubeQuery)
         {
+            if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
+            {
+                conversationState.Clear(userId);
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
+                return true;
+            }
+
             await HandleYouTubeSearchAsync(bot, userId, text!, ct);
             return true;
         }
 
         if (state == MediaConversationState.AwaitingPinterestQuery)
         {
+            if (!await botFeatures.CanUsePinterestAsync(userId, ct))
+            {
+                conversationState.Clear(userId);
+                await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
+                return true;
+            }
+
             await HandlePinterestSearchAsync(bot, userId, text!, ct);
             return true;
         }
@@ -236,6 +282,12 @@ public class MediaBotHandler(
         MediaDownloadSource source,
         CancellationToken ct)
     {
+        if (!await botFeatures.CanUsePlatformAsync(userId, platform, ct))
+        {
+            await fileSender.SendTextAsync(bot, userId, BotFeatureService.DisabledMessage(platform), ct);
+            return;
+        }
+
         if (!await userAccess.IsPrivilegedUserAsync(userId, ct))
         {
             var kind = MediaPlatformMapper.ToKind(platform);
