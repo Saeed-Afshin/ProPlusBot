@@ -1,0 +1,281 @@
+/* Shell for absolute overlay (not position: fixed) */
+.admin-shell {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.admin-nav-check {
+    display: none;
+}
+
+/* Top bar */
+.admin-topbar-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    position: relative;
+    z-index: 1060;
+}
+
+.admin-topbar .navbar-brand {
+    margin-inline-end: auto;
+}
+
+/* Hamburger — physical right on mobile */
+.admin-nav-toggler {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    padding: 0.45rem 0.55rem;
+    flex-shrink: 0;
+    background: transparent;
+}
+
+.admin-nav-toggler-icon {
+    display: block;
+    width: 1.35rem;
+    height: 2px;
+    background: #fff;
+    position: relative;
+    transition: background 0.2s ease;
+}
+
+.admin-nav-toggler-icon::before,
+.admin-nav-toggler-icon::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    width: 1.35rem;
+    height: 2px;
+    background: #fff;
+    transition: transform 0.2s ease, top 0.2s ease;
+}
+
+.admin-nav-toggler-icon::before {
+    top: -7px;
+}
+
+.admin-nav-toggler-icon::after {
+    top: 7px;
+}
+
+.admin-nav-check:checked ~ .admin-topbar .admin-nav-toggler-icon {
+    background: transparent;
+}
+
+.admin-nav-check:checked ~ .admin-topbar .admin-nav-toggler-icon::before {
+    top: 0;
+    transform: rotate(45deg);
+}
+
+.admin-nav-check:checked ~ .admin-topbar .admin-nav-toggler-icon::after {
+    top: 0;
+    transform: rotate(-45deg);
+}
+
+/* Desktop horizontal nav */
+.admin-nav-desktop {
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.admin-nav-desktop .nav-link {
+    color: rgba(255, 255, 255, 0.9);
+    padding: 0.5rem 0.65rem;
+    white-space: nowrap;
+}
+
+.admin-nav-desktop .nav-link:hover {
+    color: #fff;
+}
+
+/* Mobile: full-height narrow drawer from physical right */
+@media (max-width: 991.98px) {
+    .admin-topbar {
+        position: relative;
+        z-index: 1070;
+    }
+
+    .admin-topbar-inner {
+        padding-right: 3rem;
+        position: relative;
+    }
+
+    .admin-topbar .navbar-brand {
+        margin-inline-end: 0;
+        margin-left: auto;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    .admin-nav-check:checked ~ .admin-topbar .navbar-brand {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .admin-nav-toggler {
+        position: absolute;
+        left: auto;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1080;
+    }
+
+    body.admin-nav-open {
+        overflow: hidden;
+    }
+
+    .admin-nav-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1055;
+        cursor: pointer;
+    }
+
+    .admin-nav-check:checked ~ .admin-nav-backdrop {
+        display: block;
+    }
+
+    .admin-nav-sidebar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: auto;
+        bottom: 0;
+        height: 100vh;
+        height: 100dvh;
+        width: min(13rem, 68vw);
+        max-width: 13rem;
+        background: #212529;
+        color: #fff;
+        z-index: 1075;
+        box-shadow: -6px 0 28px rgba(0, 0, 0, 0.35);
+        transform: translateX(100%);
+        transition: transform 0.22s ease, visibility 0.22s;
+        visibility: hidden;
+        display: flex;
+        flex-direction: column;
+        pointer-events: none;
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .admin-nav-check:checked ~ .admin-nav-sidebar {
+        transform: translateX(0);
+        visibility: visible;
+        pointer-events: auto;
+    }
+
+    .admin-nav-sidebar-head {
+        flex-shrink: 0;
+        padding: 3.25rem 1rem 0.65rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.7);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .admin-nav-sidebar-body {
+        display: flex;
+        flex-direction: column;
+        padding: 0.35rem 0;
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-nav-link {
+        display: block;
+        padding: 0.7rem 1rem;
+        color: rgba(255, 255, 255, 0.92);
+        text-decoration: none;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: start;
+        font-size: 0.9375rem;
+        line-height: 1.35;
+    }
+
+    .admin-nav-link:hover,
+    .admin-nav-link:focus {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+    }
+
+    .admin-nav-logout-form {
+        margin-top: auto;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .admin-nav-logout-btn {
+        color: #f8a5a5;
+    }
+
+    .table {
+        font-size: 0.875rem;
+    }
+
+    h2 {
+        font-size: 1.25rem;
+    }
+}
+
+@media (min-width: 992px) {
+    .admin-nav-backdrop,
+    .admin-nav-sidebar {
+        display: none !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    main.container-fluid {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .pricing-matrix-table .btn {
+        width: auto;
+        margin-bottom: 0;
+    }
+}
+
+/* Pricing matrix — wider plan columns for up to 7 digits */
+.pricing-matrix-table .plan-col {
+    min-width: 6.25rem;
+    width: 6.25rem;
+}
+
+.pricing-matrix-table .plan-col .pricing-plan-input {
+    min-width: 6.25rem;
+    width: 100%;
+    max-width: 7.5rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.pricing-matrix-table thead .plan-col {
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.pricing-matrix-table .row-label-col {
+    min-width: 5.5rem;
+    white-space: nowrap;
+}
+
+.pricing-matrix-table .action-col {
+    min-width: 4.5rem;
+    white-space: nowrap;
+}

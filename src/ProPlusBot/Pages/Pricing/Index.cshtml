@@ -1,0 +1,132 @@
+@page
+@using ProPlusBot.Entities
+@using ProPlusBot.Services.Subscriptions
+@model ProPlusBot.Pages.Pricing.IndexModel
+@{
+    ViewData["Title"] = "قیمت‌گذاری";
+}
+
+<h2 class="mb-4">قیمت‌گذاری و محدودیت پلن‌ها</h2>
+
+@if (Model.SuccessMessage is not null)
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+
+<div class="table-responsive mb-4">
+    <table class="table table-bordered table-striped align-middle text-center pricing-matrix-table">
+        <thead class="table-dark">
+        <tr>
+            <th class="row-label-col">پلتفرم</th>
+            <th class="row-label-col">دوره</th>
+            <th class="row-label-col">نوع</th>
+            <th class="row-label-col">واحد</th>
+            @foreach (var plan in Model.PlanColumns)
+            {
+                <th class="plan-col">@MediaPlatformMapper.ToDisplayName(plan)</th>
+            }
+            <th class="action-col">ذخیره</th>
+            <th class="action-col">لغو</th>
+        </tr>
+        </thead>
+        <tbody>
+        @{
+            var priceFormId = "form-plan-prices";
+        }
+        <tr class="table-secondary">
+            <td class="row-label-col">—</td>
+            <td class="row-label-col">—</td>
+            <td class="row-label-col">قیمت ماهانه</td>
+            <td class="row-label-col">تومان</td>
+            @foreach (var plan in Model.PlanColumns)
+            {
+                <td class="plan-col">
+                    <input type="number"
+                           form="@priceFormId"
+                           name="PostedPlanPrices[@((int)plan)]"
+                           value="@Model.PlanPrices[plan]"
+                           class="form-control pricing-plan-input"
+                           min="0"
+                           maxlength="7"
+                           inputmode="numeric" />
+                </td>
+            }
+            <td class="action-col">
+                <button type="submit" form="@priceFormId" class="btn btn-sm btn-primary">ذخیره</button>
+            </td>
+            <td class="action-col">
+                <a asp-page="./Index" class="btn btn-outline-secondary btn-sm">لغو</a>
+            </td>
+        </tr>
+        <form id="@priceFormId" method="post" asp-page-handler="SavePlanPrices" class="d-none"></form>
+
+        @foreach (var row in Model.LimitRows)
+        {
+            var rowFormId = $"form-limit-{(int)row.Platform}-{(int)row.Period}-{(int)row.LimitKind}";
+            <tr>
+                <td class="row-label-col">@PlanLimitDisplay.PlatformLabel(row.Platform)</td>
+                <td class="row-label-col">@PlanLimitDisplay.PeriodLabel(row.Period, row.LimitKind)</td>
+                <td class="row-label-col">@PlanLimitDisplay.TypeLabel(row.LimitKind)</td>
+                <td class="row-label-col">@PlanLimitDisplay.UnitLabel(row.LimitKind)</td>
+                @foreach (var plan in Model.PlanColumns)
+                {
+                    var cell = row.Cells[plan];
+                    <td class="plan-col">
+                        @if (cell.LimitId > 0)
+                        {
+                            <input type="number"
+                                   form="@rowFormId"
+                                   name="planValues[@((int)plan)]"
+                                   value="@cell.DisplayValue"
+                                   class="form-control pricing-plan-input"
+                                   min="0"
+                                   maxlength="7"
+                                   inputmode="numeric"
+                                   step="@(ByteUnits.IsByteLimitKind(row.LimitKind) ? "0.01" : "1")" />
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                }
+                <td class="action-col">
+                    <button type="submit" form="@rowFormId" class="btn btn-sm btn-primary">ذخیره</button>
+                </td>
+                <td class="action-col">
+                    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">لغو</a>
+                </td>
+            </tr>
+            <form id="@rowFormId" method="post" asp-page-handler="SaveLimitRow" class="d-none">
+                <input type="hidden" name="platform" value="@((int)row.Platform)" />
+                <input type="hidden" name="period" value="@((int)row.Period)" />
+                <input type="hidden" name="limitKind" value="@((int)row.LimitKind)" />
+            </form>
+        }
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">بسته سهمیه اضافه</div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="SaveExtra">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">قیمت (تومان)</label>
+                    <input asp-for="ExtraPrice" class="form-control" type="number" min="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">تعداد دانلود اضافه</label>
+                    <input asp-for="ExtraCount" class="form-control" type="number" min="0" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">حجم اضافه (مگابایت)</label>
+                    <input asp-for="ExtraMegabytes" class="form-control" type="number" min="0" step="0.01" />
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">ذخیره سهمیه اضافه</button>
+            <a asp-page="./Index" class="btn btn-outline-secondary mt-3">لغو</a>
+        </form>
+    </div>
+</div>

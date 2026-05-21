@@ -1,0 +1,75 @@
+@page
+@model ProPlusBot.Pages.Admins.IndexModel
+@using ProPlusBot.Entities
+@{
+    ViewData["Title"] = "مدیران";
+}
+<h1 class="h3 mb-4">مدیران و تسترها</h1>
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+
+<div class="card mb-4 p-4">
+    <h2 class="h5">افزودن کاربر</h2>
+    <form method="post" asp-page-handler="Add">
+        <div class="row g-2">
+            <div class="col-md-3">
+                <input asp-for="NewTelegramUserId" class="form-control" placeholder="شناسه بله" />
+            </div>
+            <div class="col-md-3">
+                <input asp-for="NewPhoneNumber" class="form-control" placeholder="موبایل" />
+            </div>
+            <div class="col-md-3">
+                <input asp-for="NewDisplayName" class="form-control" placeholder="نام" />
+            </div>
+            <div class="col-md-2">
+                <select asp-for="NewRole" class="form-select">
+                    <option value="@AdminRole.Admin">Admin</option>
+                    <option value="@AdminRole.Tester">Tester</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100">افزودن</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>نام</th>
+        <th>موبایل</th>
+        <th>شناسه</th>
+        <th>نقش</th>
+        <th>فعال</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var admin in Model.Admins)
+    {
+        <tr>
+            <td>@admin.DisplayName</td>
+            <td>@admin.PhoneNumber</td>
+            <td>@admin.TelegramUserId</td>
+            <td>@admin.Role</td>
+            <td>@(admin.IsActive ? "بله" : "خیر")</td>
+            <td>
+                @if (admin.IsActive && admin.Role != AdminRole.SuperAdmin)
+                {
+                    <form method="post" asp-page-handler="Deactivate" class="d-inline">
+                        <input type="hidden" name="id" value="@admin.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">غیرفعال</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

@@ -1,0 +1,40 @@
+@page
+@model ProPlusBot.Pages.LoginModel
+@{
+    ViewData["Title"] = "ورود";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ورود - ProPlus Admin</title>
+    <partial name="Shared/_BootstrapStyles" />
+</head>
+<body class="bg-light d-flex align-items-center" style="min-height:100vh">
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h4 mb-3">ورود مدیران</h1>
+                    <p class="text-muted small">کد یکبار مصرف از طریق ربات برای شما ارسال می‌شود.</p>
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="alert alert-danger">@Model.ErrorMessage</div>
+                    }
+                    <form method="post">
+                        <div class="mb-3">
+                            <label asp-for="PhoneNumber" class="form-label">شماره موبایل</label>
+                            <input asp-for="PhoneNumber" class="form-control" placeholder="09123456789" />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">دریافت کد</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

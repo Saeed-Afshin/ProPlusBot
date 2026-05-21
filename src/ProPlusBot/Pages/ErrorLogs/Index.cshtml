@@ -1,0 +1,35 @@
+@page
+@model ProPlusBot.Pages.ErrorLogs.IndexModel
+@{
+    ViewData["Title"] = "گزارش خطاها";
+}
+
+<h2 class="mb-4">گزارش خطاها</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead>
+        <tr>
+            <th>تاریخ</th>
+            <th>شناسه کاربر</th>
+            <th>شماره</th>
+            <th>عنوان خطا</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.ErrorLogs)
+        {
+            <tr>
+                <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(item.CreatedAt)</td>
+                <td>@(item.TelegramUserId?.ToString() ?? "—")</td>
+                <td dir="ltr">@(item.PhoneNumber ?? "—")</td>
+                <td>@item.Title</td>
+                <td>
+                    <a asp-page="/ErrorLogs/Detail" asp-route-id="@item.Id">جزئیات</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

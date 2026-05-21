@@ -1,0 +1,30 @@
+@page "{id:guid}"
+@model ProPlusBot.Pages.ErrorLogs.DetailModel
+@{
+    ViewData["Title"] = "جزئیات خطا";
+    var log = Model.ErrorLog!;
+}
+
+<h2 class="mb-4">جزئیات خطا</h2>
+
+<p><a asp-page="/ErrorLogs/Index">بازگشت به فهرست</a></p>
+
+<dl class="row">
+    <dt class="col-sm-3">تاریخ</dt>
+    <dd class="col-sm-9" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(log.CreatedAt) <span class="text-muted">(تهران)</span></dd>
+
+    <dt class="col-sm-3">شناسه کاربر</dt>
+    <dd class="col-sm-9">@(log.TelegramUserId?.ToString() ?? "—")</dd>
+
+    <dt class="col-sm-3">شماره</dt>
+    <dd class="col-sm-9" dir="ltr">@(log.PhoneNumber ?? "—")</dd>
+
+    <dt class="col-sm-3">عنوان</dt>
+    <dd class="col-sm-9">@log.Title</dd>
+
+    <dt class="col-sm-3">منبع</dt>
+    <dd class="col-sm-9">@(log.Source ?? "—")</dd>
+</dl>
+
+<h3 class="h5 mt-4">متن کامل خطا</h3>
+<pre class="bg-white border rounded p-3 small" dir="ltr" style="white-space: pre-wrap; max-height: 70vh; overflow: auto;">@log.Detail</pre>

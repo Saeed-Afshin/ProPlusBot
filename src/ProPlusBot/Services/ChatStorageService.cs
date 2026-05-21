@@ -1,0 +1,72 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using ProPlusBot.Data;
+using ProPlusBot.Entities;
+using Telegram.Bot.Types;
+
+namespace ProPlusBot.Services;
+
+public class ChatStorageService(AppDbContext db)
+{
+    public async Task<BotUser> EnsureUserAsync(User user, CancellationToken ct = default)
+    {
+        var entity = await db.BotUsers.FirstOrDefaultAsync(u => u.TelegramUserId == user.Id, ct);
+        if (entity is null)
+        {
+            entity = new BotUser
+            {
+                TelegramUserId = user.Id,
+                Plan = SubscriptionPlan.Free,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.BotUsers.Add(entity);
+        }
+
+        entity.Username = user.Username;
+        entity.FirstName = user.FirstName;
+        entity.LastName = user.LastName;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return entity;
+    }
+
+    public async Task SaveIncomingAsync(Message message, CancellationToken ct = default)
+    {
+        if (message.From is null)
+            return;
+
+        await EnsureUserAsync(message.From, ct);
+        var text = message.Text ?? message.Caption;
+        var type = message.Type.ToString().ToLowerInvariant();
+
+        db.ChatMessages.Add(new ChatMessage
+        {
+            TelegramUserId = message.From.Id,
+            Direction = MessageDirection.Incoming,
+            Text = text,
+            MessageType = type,
+            TelegramMessageId = message.MessageId,
+            RawPayload = JsonSerializer.Serialize(message),
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SaveOutgoingAsync(
+        long telegramUserId,
+        string text,
+        int? telegramMessageId,
+        CancellationToken ct = default)
+    {
+        db.ChatMessages.Add(new ChatMessage
+        {
+            TelegramUserId = telegramUserId,
+            Direction = MessageDirection.Outgoing,
+            Text = text,
+            MessageType = "text",
+            TelegramMessageId = telegramMessageId,
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+    }
+}

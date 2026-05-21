@@ -1,0 +1,30 @@
+@page
+@model ProPlusBot.Pages.Settings.IndexModel
+@using ProPlusBot.Entities
+@{
+    ViewData["Title"] = "تنظیمات ربات";
+}
+<h1 class="h3 mb-4">تنظیمات ربات</h1>
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+<form method="post" class="card p-4">
+    <div class="mb-3">
+        <label class="form-label">حالت</label>
+        <select asp-for="Mode" class="form-select" asp-items="Html.GetEnumSelectList<BotMode>()"></select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">دریافت پیام</label>
+        <select asp-for="UpdateMode" class="form-select" asp-items="Html.GetEnumSelectList<BotUpdateMode>()"></select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Webhook URL</label>
+        <input asp-for="WebhookUrl" class="form-control" placeholder="https://your-domain/api/bot/webhook" />
+    </div>
+    <div class="form-check mb-3">
+        <input asp-for="IsActive" class="form-check-input" />
+        <label asp-for="IsActive" class="form-check-label">ربات فعال</label>
+    </div>
+    <button type="submit" class="btn btn-primary">ذخیره</button>
+</form>

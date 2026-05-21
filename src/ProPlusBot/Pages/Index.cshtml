@@ -1,0 +1,35 @@
+@page
+@model ProPlusBot.Pages.IndexModel
+@{
+    ViewData["Title"] = "داشبورد";
+}
+<h1 class="h3 mb-4">داشبورد</h1>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="text-muted small">کاربران</div>
+                <div class="fs-3">@Model.TotalUsers</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="text-muted small">پیام‌ها</div>
+                <div class="fs-3">@Model.TotalMessages</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="text-muted small">وضعیت ربات</div>
+                <div class="fs-5">@(Model.BotActive ? "فعال" : "غیرفعال") — @Model.BotMode</div>
+            </div>
+        </div>
+    </div>
+</div>
+<p class="mt-4">
+    <a class="btn btn-outline-primary" href="/scalar" target="_blank">مستندات API (Scalar)</a>
+</p>

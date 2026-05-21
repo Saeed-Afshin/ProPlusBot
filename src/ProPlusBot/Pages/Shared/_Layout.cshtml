@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - ProPlus Bot Admin</title>
+    <partial name="_BootstrapStyles" />
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body class="bg-light">
+<div class="admin-shell">
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <input type="checkbox" id="admin-nav-toggle" class="admin-nav-check" aria-hidden="true" />
+}
+<header class="navbar navbar-dark bg-dark mb-4 admin-topbar">
+    <div class="container-fluid admin-topbar-inner">
+        <a class="navbar-brand" asp-page="/Index">ProPlus Admin</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <label for="admin-nav-toggle" class="admin-nav-toggler d-lg-none" aria-label="باز و بسته کردن منو">
+                <span class="admin-nav-toggler-icon" aria-hidden="true"></span>
+            </label>
+        }
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <nav class="admin-nav-desktop d-none d-lg-flex">
+                <a class="nav-link" asp-page="/Index">داشبورد</a>
+                <a class="nav-link" asp-page="/Pricing/Index">قیمت‌گذاری</a>
+                <a class="nav-link" asp-page="/Users/Index">کاربران</a>
+                <a class="nav-link" asp-page="/Users/Manage">مدیریت کاربر</a>
+                <a class="nav-link" asp-page="/Payments/Index">پرداخت‌ها</a>
+                <a class="nav-link" asp-page="/ErrorLogs/Index">گزارش خطاها</a>
+                <a class="nav-link" asp-page="/Settings/Index">تنظیمات</a>
+                <a class="nav-link" asp-page="/Admins/Index">مدیران</a>
+                <form method="post" asp-page="/Logout" class="d-inline">
+                    <button type="submit" class="btn btn-link nav-link">خروج</button>
+                </form>
+            </nav>
+        }
+    </div>
+</header>
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <label for="admin-nav-toggle" class="admin-nav-backdrop d-lg-none" aria-hidden="true"></label>
+    <aside class="admin-nav-sidebar d-lg-none" aria-label="منوی اصلی">
+        <div class="admin-nav-sidebar-head">منو</div>
+        <nav class="admin-nav-sidebar-body">
+            <a class="admin-nav-link" asp-page="/Index">داشبورد</a>
+            <a class="admin-nav-link" asp-page="/Pricing/Index">قیمت‌گذاری</a>
+            <a class="admin-nav-link" asp-page="/Users/Index">کاربران</a>
+            <a class="admin-nav-link" asp-page="/Users/Manage">مدیریت کاربر</a>
+            <a class="admin-nav-link" asp-page="/Payments/Index">پرداخت‌ها</a>
+            <a class="admin-nav-link" asp-page="/ErrorLogs/Index">گزارش خطاها</a>
+            <a class="admin-nav-link" asp-page="/Settings/Index">تنظیمات</a>
+            <a class="admin-nav-link" asp-page="/Admins/Index">مدیران</a>
+            <form method="post" asp-page="/Logout" class="admin-nav-logout-form">
+                <button type="submit" class="admin-nav-link admin-nav-logout-btn">خروج</button>
+            </form>
+        </nav>
+    </aside>
+}
+<main class="container-fluid px-3 px-lg-4 pb-5">
+    @RenderBody()
+</main>
+</div>
+@await RenderSectionAsync("Scripts", required: false)
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <script>
+        (function () {
+            var toggle = document.getElementById('admin-nav-toggle');
+            var toggler = document.querySelector('.admin-nav-toggler');
+            if (!toggle || !toggler) return;
+
+            function syncMenuState() {
+                var open = toggle.checked;
+                document.body.classList.toggle('admin-nav-open', open);
+                toggler.setAttribute('aria-expanded', open ? 'true' : 'false');
+                toggler.setAttribute('aria-label', open ? 'بستن منو' : 'باز کردن منو');
+            }
+
+            toggle.addEventListener('change', syncMenuState);
+            syncMenuState();
+
+            document.querySelectorAll('.admin-nav-sidebar .admin-nav-link, .admin-nav-sidebar .admin-nav-logout-btn')
+                .forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        toggle.checked = false;
+                        syncMenuState();
+                    });
+                });
+        })();
+    </script>
+}
+</body>
+</html>

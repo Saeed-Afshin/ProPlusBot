@@ -1,0 +1,246 @@
+@page
+@model ProPlusBot.Pages.Users.ManageModel
+@{
+    ViewData["Title"] = "مدیریت دستی کاربر";
+}
+
+<h2 class="mb-4">مدیریت دستی کاربر</h2>
+
+<p class="mb-3">
+    <a class="btn btn-outline-secondary btn-sm" asp-page="/Users/Index">بازگشت به لیست کاربران</a>
+</p>
+
+@if (Model.SuccessMessage is not null) { <div class="alert alert-success">@Model.SuccessMessage</div> }
+@if (Model.ErrorMessage is not null) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+
+@if (Model.AccountSummary is not null)
+{
+    var s = Model.AccountSummary;
+    <div class="card mb-4">
+        <div class="card-header">پلن فعال و مصرف</div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3"><strong>پلن فعال:</strong> @MediaPlatformMapper.ToDisplayName(s.EffectivePlan)</div>
+                @if (s.StoredPlan != s.EffectivePlan)
+                {
+                    <div class="col-md-3"><strong>پلن ثبت‌شده:</strong> @MediaPlatformMapper.ToDisplayName(s.StoredPlan)</div>
+                }
+                <div class="col-md-3">
+                    <strong>انقضا:</strong>
+                    @if (s.PlanExpiresAt is null)
+                    {
+                        <span>—</span>
+                    }
+                    else
+                    {
+                        <span dir="ltr">@PersianDateTimeHelper.ToShamsiDateString(s.PlanExpiresAt) @PersianDateTimeHelper.ToTimeString(s.PlanExpiresAt)</span>
+                    }
+                </div>
+                <div class="col-md-3"><strong>وضعیت:</strong> @(s.IsBanned ? "مسدود" : "فعال")</div>
+            </div>
+            <p class="text-muted small mb-3">
+                بازه روزانه از نیمه‌شب و بازه ماهانه از اول هر ماه (به وقت تهران).
+                اعداد به صورت <strong>مصرف / سقف</strong>.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle text-center mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>پلتفرم</th>
+                        <th>دانلود روزانه</th>
+                        <th>حجم روزانه</th>
+                        <th>دانلود ماهانه</th>
+                        <th>حجم ماهانه</th>
+                        <th>حداکثر فایل</th>
+                        <th>سهمیه اضافه</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var q in s.Quotas)
+                    {
+                        <tr>
+                            <td>@MediaPlatformMapper.ToDisplayName(q.Platform)</td>
+                            <td dir="ltr">@q.DailyCountUsed / @q.DailyCountLimit</td>
+                            <td dir="ltr">@ByteUnits.FormatMegabytes(q.DailyBytesUsed) / @ByteUnits.FormatMegabytes(q.DailyBytesLimit)</td>
+                            <td dir="ltr">@q.MonthlyCountUsed / @q.MonthlyCountLimit</td>
+                            <td dir="ltr">@ByteUnits.FormatMegabytes(q.MonthlyBytesUsed) / @ByteUnits.FormatMegabytes(q.MonthlyBytesLimit)</td>
+                            <td dir="ltr">@ByteUnits.FormatMegabytes(q.MaxFileBytesLimit)</td>
+                            <td dir="ltr">
+                                @if (q.ExtraCountRemaining > 0 || q.ExtraBytesRemaining > 0)
+                                {
+                                    <span>@q.ExtraCountRemaining دانلود، @ByteUnits.FormatMegabytes(q.ExtraBytesRemaining)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.ReservedPlans.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">پلن‌های رزرو</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>پلن</th><th>مدت (روز)</th><th>تاریخ رزرو</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var r in Model.ReservedPlans)
+                    {
+                        <tr>
+                            <td>@MediaPlatformMapper.ToDisplayName(r.Plan)</td>
+                            <td>@r.DurationDays</td>
+                            <td dir="ltr">@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <form method="post" asp-page-handler="DeleteReserved" class="d-inline">
+                                    <input type="hidden" name="reservationId" value="@r.Id" />
+                                    <input type="hidden" name="EditUserId" value="@Model.EditUserId" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">حذف</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (Model.UserLimitRows.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>محدودیت‌های اختصاصی کاربر (پلن فعال: @MediaPlatformMapper.ToDisplayName(s.EffectivePlan))</span>
+                <form method="post" asp-page-handler="ClearUserLimits" class="m-0">
+                    <input type="hidden" asp-for="EditUserId" />
+                    <button type="submit" class="btn btn-sm btn-outline-warning">بازگشت به پیش‌فرض پلن</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle text-center mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>پلتفرم</th>
+                            <th>دوره</th>
+                            <th>نوع</th>
+                            <th>واحد</th>
+                            <th>مقدار</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.UserLimitRows)
+                        {
+                            var isBytes = ByteUnits.IsByteLimitKind(row.LimitKind);
+                            var rowFormId = $"limit-{Model.EditUserId}-{(int)row.Platform}-{(int)row.Period}-{(int)row.LimitKind}";
+                            <tr class="@(row.IsCustom ? "table-warning" : null)">
+                                <td>@PlanLimitDisplay.PlatformLabel(row.Platform)</td>
+                                <td>@PlanLimitDisplay.PeriodLabel(row.Period, row.LimitKind)</td>
+                                <td>@PlanLimitDisplay.TypeLabel(row.LimitKind)</td>
+                                <td>@PlanLimitDisplay.UnitLabel(row.LimitKind)</td>
+                                <td>
+                                    <input form="@rowFormId" type="number" name="value" value="@row.DisplayValue"
+                                           class="form-control form-control-sm" min="0"
+                                           step="@(isBytes ? "0.01" : "1")" dir="ltr" />
+                                </td>
+                                <td>
+                                    <button type="submit" form="@rowFormId" class="btn btn-sm btn-primary">ذخیره</button>
+                                </td>
+                            </tr>
+                            <form id="@rowFormId" method="post" asp-page-handler="SaveUserLimitRow" class="d-none">
+                                <input type="hidden" name="EditUserId" value="@Model.EditUserId" />
+                                <input type="hidden" name="platform" value="@((int)row.Platform)" />
+                                <input type="hidden" name="period" value="@((int)row.Period)" />
+                                <input type="hidden" name="limitKind" value="@((int)row.LimitKind)" />
+                            </form>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" asp-page-handler="SetPlan" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">شناسه کاربر</label>
+                <input asp-for="EditUserId" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">پلن</label>
+                <select asp-for="EditPlan" class="form-select" asp-items="Html.GetEnumSelectList<SubscriptionPlan>()"></select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">تاریخ انقضا (شمسی، اختیاری)</label>
+                <input asp-for="EditExpiresDateShamsi"
+                       class="form-control"
+                       dir="ltr"
+                       placeholder="1404/01/01"
+                       autocomplete="off"
+                       inputmode="numeric" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ساعت انقضا (۲۴ ساعته)</label>
+                <input asp-for="EditExpiresTime"
+                       class="form-control font-monospace"
+                       dir="ltr"
+                       type="text"
+                       placeholder="00:00:00"
+                       pattern="([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+                       maxlength="8"
+                       autocomplete="off"
+                       inputmode="numeric"
+                       title="00:00:00 تا 23:59:59" />
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">تعیین پلن</button>
+            </div>
+        </form>
+
+        <form method="post" asp-page-handler="Extend" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label">شناسه کاربر</label>
+                <input asp-for="EditUserId" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">تمدید (روز)</label>
+                <input asp-for="ExtendDays" class="form-control" type="number" min="1" />
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-secondary w-100">تمدید اشتراک</button>
+            </div>
+        </form>
+
+        <form method="post" asp-page-handler="AdjustQuota" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">شناسه کاربر</label>
+                <input asp-for="EditUserId" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">پلتفرم</label>
+                <select asp-for="QuotaPlatform" class="form-select" asp-items="Html.GetEnumSelectList<MediaPlatformKind>()"></select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Δ تعداد</label>
+                <input asp-for="QuotaCountDelta" class="form-control" type="number" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Δ حجم (مگابایت)</label>
+                <input asp-for="QuotaMegabytesDelta" class="form-control" type="number" step="0.01" />
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary w-100">تنظیم سهمیه</button>
+            </div>
+        </form>
+    </div>
+</div>

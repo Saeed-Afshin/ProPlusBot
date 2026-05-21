@@ -1,0 +1,40 @@
+@page
+@model ProPlusBot.Pages.LoginVerifyModel
+@{
+    ViewData["Title"] = "تایید کد";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تایید کد - ProPlus Admin</title>
+    <partial name="Shared/_BootstrapStyles" />
+</head>
+<body class="bg-light d-flex align-items-center" style="min-height:100vh">
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h4 mb-3">تایید کد ورود</h1>
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="alert alert-danger">@Model.ErrorMessage</div>
+                    }
+                    <form method="post">
+                        <input type="hidden" asp-for="PhoneNumber" />
+                        <div class="mb-3">
+                            <label asp-for="Code" class="form-label">کد ارسال شده در ربات</label>
+                            <input asp-for="Code" class="form-control" maxlength="6" />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">ورود</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

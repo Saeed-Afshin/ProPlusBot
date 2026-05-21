@@ -1,0 +1,71 @@
+@page
+@model ProPlusBot.Pages.Users.IndexModel
+@{
+    ViewData["Title"] = "کاربران";
+}
+
+<h2 class="mb-4">کاربران ربات</h2>
+
+<div class="mb-3">
+    <a class="btn btn-primary" asp-page="/Users/Manage">مدیریت دستی کاربر</a>
+</div>
+
+@if (Model.SuccessMessage is not null) { <div class="alert alert-success">@Model.SuccessMessage</div> }
+@if (Model.ErrorMessage is not null) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-8">
+        <input asp-for="Search" class="form-control" placeholder="شناسه، نام کاربری یا شماره" />
+    </div>
+    <div class="col-md-4">
+        <button type="submit" class="btn btn-secondary">جستجو</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-striped align-middle">
+        <thead>
+        <tr>
+            <th>شناسه</th>
+            <th>نام کاربری</th>
+            <th>شماره</th>
+            <th>پلن</th>
+            <th>تاریخ انقضا (شمسی)</th>
+            <th>ساعت انقضا</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var u in Model.Users)
+        {
+            <tr>
+                <td>@u.TelegramUserId</td>
+                <td>@(u.Username ?? "—")</td>
+                <td>@(u.PhoneNumber ?? "—")</td>
+                <td>@MediaPlatformMapper.ToDisplayName(u.Plan)</td>
+                <td dir="ltr">@(u.PlanExpiresAt is null ? "—" : PersianDateTimeHelper.ToShamsiDateString(u.PlanExpiresAt))</td>
+                <td dir="ltr" class="font-monospace">@(u.PlanExpiresAt is null ? "—" : PersianDateTimeHelper.ToTimeString(u.PlanExpiresAt))</td>
+                <td>@(u.IsBanned ? "مسدود" : "فعال")</td>
+                <td>
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Users/Manage" asp-route-userId="@u.TelegramUserId">مدیریت</a>
+                    @if (u.IsBanned)
+                    {
+                        <form method="post" asp-page-handler="Unban" class="d-inline">
+                            <input type="hidden" name="userId" value="@u.TelegramUserId" />
+                            <button class="btn btn-sm btn-success">رفع مسدودیت</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="Ban" class="d-inline">
+                            <input type="hidden" name="userId" value="@u.TelegramUserId" />
+                            <button class="btn btn-sm btn-danger">مسدود</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

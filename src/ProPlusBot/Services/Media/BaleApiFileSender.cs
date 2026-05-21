@@ -1,0 +1,105 @@
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.Options;
+using ProPlusBot.Configuration;
+using Telegram.Bot.Types;
+
+namespace ProPlusBot.Services.Media;
+
+/// <summary>
+/// Sends local files to Bale via multipart/form-data (Telegram.Bot stream upload is treated as invalid URL on Bale).
+/// </summary>
+public class BaleApiFileSender(
+    IOptions<BotOptions> botOptions,
+    IHttpClientFactory httpClientFactory,
+    ILogger<BaleApiFileSender> logger)
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly BotOptions _botOptions = botOptions.Value;
+
+    public async Task<Message> SendFileAsync(long chatId, string filePath, CancellationToken ct)
+    {
+        var fileInfo = new FileInfo(filePath);
+        var ext = fileInfo.Extension.ToLowerInvariant();
+
+        var (method, fieldName) = ext switch
+        {
+            ".mp4" or ".mkv" or ".webm" or ".mov" => ("sendVideo", "video"),
+            ".mp3" or ".m4a" or ".ogg" or ".opus" or ".wav" => ("sendAudio", "audio"),
+            ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" => ("sendPhoto", "photo"),
+            _ => ("sendDocument", "document")
+        };
+
+        return await SendMultipartAsync(chatId, filePath, fileInfo, method, fieldName, ct);
+    }
+
+    private async Task<Message> SendMultipartAsync(
+        long chatId,
+        string filePath,
+        FileInfo fileInfo,
+        string method,
+        string fieldName,
+        CancellationToken ct)
+    {
+        await using var fileStream = File.OpenRead(filePath);
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(chatId.ToString()), "chat_id");
+
+        var fileContent = new StreamContent(fileStream);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileInfo.Extension));
+        content.Add(fileContent, fieldName, fileInfo.Name);
+
+        var url = $"{_botOptions.BaleApiBaseUrl.TrimEnd('/')}/bot{_botOptions.Token}/{method}";
+        var client = httpClientFactory.CreateClient(nameof(BaleApiFileSender));
+
+        using var response = await client.PostAsync(url, content, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Bale {Method} HTTP {Status}: {Body}", method, response.StatusCode, body);
+            throw new InvalidOperationException($"Bale API {method} failed: {body}");
+        }
+
+        var apiResponse = JsonSerializer.Deserialize<BaleApiResponse<Message>>(body, JsonOptions);
+        if (apiResponse?.Ok != true || apiResponse.Result is null)
+        {
+            logger.LogError("Bale {Method} returned error: {Body}", method, body);
+            throw new InvalidOperationException($"Bale API {method} returned ok=false");
+        }
+
+        return apiResponse.Result;
+    }
+
+    private static string GetMimeType(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".webp" => "image/webp",
+        ".gif" => "image/gif",
+        ".mp4" => "video/mp4",
+        ".webm" => "video/webm",
+        ".mkv" => "video/x-matroska",
+        ".mov" => "video/quicktime",
+        ".mp3" => "audio/mpeg",
+        ".m4a" => "audio/mp4",
+        ".ogg" => "audio/ogg",
+        ".opus" => "audio/opus",
+        ".wav" => "audio/wav",
+        _ => "application/octet-stream"
+    };
+
+    private sealed class BaleApiResponse<T>
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("result")]
+        public T? Result { get; set; }
+    }
+}
