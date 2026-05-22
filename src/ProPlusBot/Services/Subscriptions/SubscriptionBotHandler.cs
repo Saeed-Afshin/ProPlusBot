@@ -13,6 +13,7 @@ public class SubscriptionBotHandler(
     QuotaService quotaService,
     SubscriptionService subscriptionService,
     PlanLifecycleService planLifecycle,
+    PlanCatalogService planCatalog,
     BalePaymentService paymentService,
     MediaFileSender fileSender,
     BaleBotClientFactory clientFactory,
@@ -20,12 +21,15 @@ public class SubscriptionBotHandler(
     AppDbContext db)
 {
     public const string AccountButtonText = "حساب من";
+    public const string PlansButtonText = "پلن‌ها";
     public const string UpgradeButtonText = "ارتقا پلن";
     public const string BuyPlanButtonText = "خرید پلن";
     public const string ExtraQuotaButtonText = "سهمیه اضافه";
 
+    public const string CallbackMenuPrefix = "sub:menu:";
     public const string CallbackUpgradePrefix = "sub:up:";
     public const string CallbackBuyPrefix = "sub:buy:";
+    public const string CallbackPlanViewPrefix = "sub:pv:";
     public const string CallbackExtraPrefix = "sub:ex:";
     public const string CallbackActivateReservedPrefix = "sub:rsv:";
 
@@ -40,6 +44,12 @@ public class SubscriptionBotHandler(
         if (text == AccountButtonText)
         {
             await SendAccountSummaryAsync(bot, userId, ct);
+            return true;
+        }
+
+        if (text == PlansButtonText)
+        {
+            await SendPlansMenuAsync(bot, userId, ct);
             return true;
         }
 
@@ -73,6 +83,34 @@ public class SubscriptionBotHandler(
             return false;
 
         var bot = clientFactory.CreateClient();
+
+        if (callback.Data.StartsWith(CallbackMenuPrefix, StringComparison.Ordinal))
+        {
+            var action = callback.Data[CallbackMenuPrefix.Length..];
+            switch (action)
+            {
+                case "upgrade":
+                    await SendUpgradeOptionsAsync(bot, callback.From.Id, ct);
+                    break;
+                case "buy":
+                    await SendBuyPlanOptionsAsync(bot, callback.From.Id, ct);
+                    break;
+                case "extra":
+                    await SendExtraQuotaOptionsAsync(bot, callback.From.Id, ct);
+                    break;
+            }
+
+            return true;
+        }
+
+        if (callback.Data.StartsWith(CallbackPlanViewPrefix, StringComparison.Ordinal))
+        {
+            if (!TryParsePlanViewCallback(callback.Data, out var viewPlan, out var viewMode))
+                return true;
+
+            await SendPlanOfferDetailsAsync(bot, callback.From.Id, viewPlan, viewMode, ct);
+            return true;
+        }
 
         if (callback.Data.StartsWith(CallbackUpgradePrefix, StringComparison.Ordinal))
         {
@@ -167,10 +205,53 @@ public class SubscriptionBotHandler(
     }
 
     private static bool IsSubscriptionCallback(string data) =>
-        data.StartsWith(CallbackUpgradePrefix, StringComparison.Ordinal)
+        data.StartsWith(CallbackMenuPrefix, StringComparison.Ordinal)
+        || data.StartsWith(CallbackPlanViewPrefix, StringComparison.Ordinal)
+        || data.StartsWith(CallbackUpgradePrefix, StringComparison.Ordinal)
         || data.StartsWith(CallbackBuyPrefix, StringComparison.Ordinal)
         || data.StartsWith(CallbackActivateReservedPrefix, StringComparison.Ordinal)
         || data.StartsWith(CallbackExtraPrefix, StringComparison.Ordinal);
+
+    private static string PlanViewCallback(SubscriptionPlan plan, PlanOfferMode mode) =>
+        $"{CallbackPlanViewPrefix}{plan}:{mode.ToString().ToLowerInvariant()}";
+
+    private static bool TryParsePlanViewCallback(string data, out SubscriptionPlan plan, out PlanOfferMode mode)
+    {
+        plan = default;
+        mode = default;
+
+        if (!data.StartsWith(CallbackPlanViewPrefix, StringComparison.Ordinal))
+            return false;
+
+        var payload = data[CallbackPlanViewPrefix.Length..];
+        var colon = payload.LastIndexOf(':');
+        if (colon <= 0 || colon >= payload.Length - 1)
+            return false;
+
+        var planStr = payload[..colon];
+        var modeStr = payload[(colon + 1)..];
+
+        if (!Enum.TryParse<SubscriptionPlan>(planStr, out plan))
+            return false;
+
+        return Enum.TryParse<PlanOfferMode>(modeStr, ignoreCase: true, out mode);
+    }
+
+    private async Task SendPlansMenuAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
+    {
+        var rows = new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData(UpgradeButtonText, $"{CallbackMenuPrefix}upgrade") },
+            new[] { InlineKeyboardButton.WithCallbackData(BuyPlanButtonText, $"{CallbackMenuPrefix}buy") },
+            new[] { InlineKeyboardButton.WithCallbackData(ExtraQuotaButtonText, $"{CallbackMenuPrefix}extra") }
+        };
+
+        await bot.SendMessage(
+            userId,
+            "گزینه مورد نظر را انتخاب کنید:",
+            replyMarkup: new InlineKeyboardMarkup(rows),
+            cancellationToken: ct);
+    }
 
     private async Task SendAccountSummaryAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
     {
@@ -296,7 +377,7 @@ public class SubscriptionBotHandler(
             {
                 var diff = await subscriptionService.GetUpgradePriceDiffAsync(userId, plan, ct);
                 var label = $"{MediaPlatformMapper.ToDisplayName(plan)} — {TomanCurrency.FormatToman(diff)}";
-                buttons.Add([InlineKeyboardButton.WithCallbackData(label, $"{CallbackUpgradePrefix}{plan}")]);
+                buttons.Add([InlineKeyboardButton.WithCallbackData(label, PlanViewCallback(plan, PlanOfferMode.Upgrade))]);
             }
             catch
             {
@@ -312,7 +393,7 @@ public class SubscriptionBotHandler(
 
         await bot.SendMessage(
             userId,
-            "ارتقا (پرداخت اختلاف قیمت — در صورت پلن فعال، بلافاصله اعمال می‌شود):",
+            "برای مشاهده جزئیات و پرداخت، یک پلن را انتخاب کنید (ارتقا — پرداخت اختلاف قیمت):",
             replyMarkup: new InlineKeyboardMarkup(buttons),
             cancellationToken: ct);
     }
@@ -339,7 +420,7 @@ public class SubscriptionBotHandler(
             {
                 var price = await subscriptionService.GetPlanPurchasePriceAsync(plan, ct);
                 var label = $"{MediaPlatformMapper.ToDisplayName(plan)} — {TomanCurrency.FormatToman(price)}";
-                buttons.Add([InlineKeyboardButton.WithCallbackData(label, $"{CallbackBuyPrefix}{plan}")]);
+                buttons.Add([InlineKeyboardButton.WithCallbackData(label, PlanViewCallback(plan, PlanOfferMode.Buy))]);
             }
             catch
             {
@@ -349,8 +430,49 @@ public class SubscriptionBotHandler(
 
         await bot.SendMessage(
             userId,
-            "خرید پلن (قیمت کامل — اگر پلن فعال دارید، در صف رزرو می‌شود):",
+            "برای مشاهده جزئیات و پرداخت، یک پلن را انتخاب کنید:",
             replyMarkup: new InlineKeyboardMarkup(buttons),
+            cancellationToken: ct);
+    }
+
+    private async Task SendPlanOfferDetailsAsync(
+        ITelegramBotClient bot,
+        long userId,
+        SubscriptionPlan plan,
+        PlanOfferMode mode,
+        CancellationToken ct)
+    {
+        long? priceToman = null;
+        try
+        {
+            priceToman = mode == PlanOfferMode.Upgrade
+                ? await subscriptionService.GetUpgradePriceDiffAsync(userId, plan, ct)
+                : await subscriptionService.GetPlanPurchasePriceAsync(plan, ct);
+        }
+        catch (Exception ex)
+        {
+            await fileSender.SendTextAsync(bot, userId, ex.Message, ct);
+            return;
+        }
+
+        var text = await planCatalog.BuildPlanDetailsMessageAsync(plan, mode, priceToman, ct);
+        var payCallback = mode == PlanOfferMode.Upgrade
+            ? $"{CallbackUpgradePrefix}{plan}"
+            : $"{CallbackBuyPrefix}{plan}";
+        var backCallback = mode == PlanOfferMode.Upgrade
+            ? $"{CallbackMenuPrefix}upgrade"
+            : $"{CallbackMenuPrefix}buy";
+
+        var rows = new List<InlineKeyboardButton[]>
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("پرداخت و صدور فاکتور", payCallback) },
+            new[] { InlineKeyboardButton.WithCallbackData("بازگشت", backCallback) }
+        };
+
+        await bot.SendMessage(
+            userId,
+            text + "\n\nدر صورت تأیید، دکمه پرداخت را بزنید:",
+            replyMarkup: new InlineKeyboardMarkup(rows),
             cancellationToken: ct);
     }
 

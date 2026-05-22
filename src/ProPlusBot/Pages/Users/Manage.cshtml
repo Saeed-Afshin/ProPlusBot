@@ -172,7 +172,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">پلن</label>
-                <select asp-for="EditPlan" class="form-select" asp-items="Html.GetEnumSelectList<SubscriptionPlan>()"></select>
+                <select asp-for="EditPlan" class="form-select" asp-items="MediaPlatformMapper.GetPlanSelectList(Model.EditPlan)"></select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">تاریخ انقضا (شمسی، اختیاری)</label>

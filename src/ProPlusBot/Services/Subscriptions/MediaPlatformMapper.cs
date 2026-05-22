@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.Rendering;
 using ProPlusBot.Entities;
 using ProPlusBot.Services.Media;
 
@@ -25,9 +26,13 @@ public static class MediaPlatformMapper
         plan switch
         {
             SubscriptionPlan.Free => "آزمایشی",
-            SubscriptionPlan.Bronze => "برنز",
+            SubscriptionPlan.Bronze => "برنزی",
             SubscriptionPlan.Silver => "نقره‌ای",
             SubscriptionPlan.Golden => "طلایی",
             _ => plan.ToString()
         };
+
+    public static IEnumerable<SelectListItem> GetPlanSelectList(SubscriptionPlan? selected = null) =>
+        Enum.GetValues<SubscriptionPlan>()
+            .Select(p => new SelectListItem(ToDisplayName(p), p.ToString(), selected == p));
 }

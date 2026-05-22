@@ -45,24 +45,22 @@ public class BotFeatureService(BotSettingsService settingsService, UserAccessSer
     {
         var rows = new List<KeyboardButton[]>();
 
-        var mediaButtons = new List<KeyboardButton>();
-        if (await CanUseYouTubeAsync(telegramUserId, ct))
-            mediaButtons.Add(new KeyboardButton(MediaConstants.YouTubeSearchButtonText));
-        if (await CanUsePinterestAsync(telegramUserId, ct))
-            mediaButtons.Add(new KeyboardButton(MediaConstants.PinterestSearchButtonText));
+        var youtube = await CanUseYouTubeAsync(telegramUserId, ct);
+        var pinterest = await CanUsePinterestAsync(telegramUserId, ct);
 
-        if (mediaButtons.Count > 0)
-            rows.Add(mediaButtons.ToArray());
+        if (youtube || pinterest)
+        {
+            rows.Add(
+            [
+                new KeyboardButton(MediaConstants.YouTubeSearchButtonText),
+                new KeyboardButton(MediaConstants.PinterestSearchButtonText)
+            ]);
+        }
 
         rows.Add(
         [
             new KeyboardButton(SubscriptionBotHandler.AccountButtonText),
-            new KeyboardButton(SubscriptionBotHandler.UpgradeButtonText)
-        ]);
-        rows.Add(
-        [
-            new KeyboardButton(SubscriptionBotHandler.BuyPlanButtonText),
-            new KeyboardButton(SubscriptionBotHandler.ExtraQuotaButtonText)
+            new KeyboardButton(SubscriptionBotHandler.PlansButtonText)
         ]);
         rows.Add([new KeyboardButton(UserAccessService.RestartButtonText)]);
 
@@ -77,12 +75,12 @@ public class BotFeatureService(BotSettingsService settingsService, UserAccessSer
         return (youtube, pinterest) switch
         {
             (true, true) =>
-                "همه شرایط تکمیل است. لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های جستجو استفاده کنید.",
+                "همه شرایط تکمیل است. لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های «جستجوی یوتیوب» و «جستجوی پینترست» استفاده کنید.",
             (true, false) =>
                 "همه شرایط تکمیل است. لینک یوتیوب بفرستید یا از دکمه «جستجوی یوتیوب» استفاده کنید.",
             (false, true) =>
                 "همه شرایط تکمیل است. لینک پینترست بفرستید یا از دکمه «جستجوی پینترست» استفاده کنید.",
-            _ => "همه شرایط تکمیل است. از منوی حساب و پلن‌ها استفاده کنید."
+            _ => "همه شرایط تکمیل است. از «حساب من» و «پلن‌ها» استفاده کنید."
         };
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
@@ -12,6 +13,8 @@ public class BotHostedService(
     IServiceScopeFactory scopeFactory,
     BaleBotClientFactory clientFactory,
     IOptions<BotOptions> botOptions,
+    IHostEnvironment hostEnvironment,
+    IConfiguration configuration,
     ILogger<BotHostedService> logger) : BackgroundService
 {
     private static readonly UpdateType[] PaymentUpdateTypes =
@@ -24,6 +27,12 @@ public class BotHostedService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+
+        logger.LogInformation(
+            "Bale bot service starting ({Environment}, db {Database}, token {BotToken})",
+            hostEnvironment.EnvironmentName,
+            ConfigurationValidation.DescribeConnection(configuration.GetConnectionString("DefaultConnection")),
+            ConfigurationValidation.MaskBotToken(botOptions.Value.Token));
 
         while (!stoppingToken.IsCancellationRequested)
         {

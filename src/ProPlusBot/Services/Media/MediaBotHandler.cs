@@ -30,6 +30,18 @@ public class MediaBotHandler(
         var userId = callback.From.Id;
         var bot = clientFactory.CreateClient();
 
+        if (callback.Data == MediaConstants.CallbackSearchYouTube)
+        {
+            await StartYouTubeSearchAsync(bot, userId, ct);
+            return true;
+        }
+
+        if (callback.Data == MediaConstants.CallbackSearchPinterest)
+        {
+            await StartPinterestSearchAsync(bot, userId, ct);
+            return true;
+        }
+
         if (TryParseSearchNextCallback(callback.Data, out var nextPrefix))
         {
             var session = conversationState.GetSearchSession(userId);
@@ -99,31 +111,21 @@ public class MediaBotHandler(
         var userId = message.From!.Id;
         var text = message.Text?.Trim();
 
+        if (text == MediaConstants.SearchButtonText)
+        {
+            await HandleSearchMenuRequestAsync(bot, userId, ct);
+            return true;
+        }
+
         if (text == MediaConstants.YouTubeSearchButtonText)
         {
-            if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
-            {
-                await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
-                return true;
-            }
-
-            conversationState.SetState(userId, MediaConversationState.AwaitingYouTubeQuery);
-            await fileSender.SendTextAsync(bot, userId,
-                "عبارت جستجو را برای یوتیوب بفرستید:", ct);
+            await StartYouTubeSearchAsync(bot, userId, ct);
             return true;
         }
 
         if (text == MediaConstants.PinterestSearchButtonText)
         {
-            if (!await botFeatures.CanUsePinterestAsync(userId, ct))
-            {
-                await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
-                return true;
-            }
-
-            conversationState.SetState(userId, MediaConversationState.AwaitingPinterestQuery);
-            await fileSender.SendTextAsync(bot, userId,
-                "عبارت جستجو را برای پینترست بفرستید:", ct);
+            await StartPinterestSearchAsync(bot, userId, ct);
             return true;
         }
 
@@ -475,7 +477,7 @@ public class MediaBotHandler(
             if (!allowed)
             {
                 await fileSender.SendTextAsync(bot, userId,
-                    $"{message}\nاز «{SubscriptionBotHandler.ExtraQuotaButtonText}» یا «{SubscriptionBotHandler.UpgradeButtonText}» استفاده کنید.",
+                    $"{message}\nاز «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.",
                     ct);
                 return;
             }
@@ -483,5 +485,76 @@ public class MediaBotHandler(
 
         await fileSender.SendTextAsync(bot, userId, "در حال دانلود…", ct);
         await downloadQueue.EnqueueAsync(new MediaDownloadJob(userId, url, platform, source), ct);
+    }
+
+    private async Task HandleSearchMenuRequestAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
+    {
+        var youtube = await botFeatures.CanUseYouTubeAsync(userId, ct);
+        var pinterest = await botFeatures.CanUsePinterestAsync(userId, ct);
+
+        if (!youtube && !pinterest)
+        {
+            await fileSender.SendTextAsync(bot, userId,
+                "جستجو در حال حاضر غیرفعال است.", ct);
+            return;
+        }
+
+        if (youtube && !pinterest)
+        {
+            await StartYouTubeSearchAsync(bot, userId, ct);
+            return;
+        }
+
+        if (pinterest && !youtube)
+        {
+            await StartPinterestSearchAsync(bot, userId, ct);
+            return;
+        }
+
+        var rows = new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    MediaConstants.YouTubeSearchButtonText,
+                    MediaConstants.CallbackSearchYouTube)
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    MediaConstants.PinterestSearchButtonText,
+                    MediaConstants.CallbackSearchPinterest)
+            }
+        };
+
+        await bot.SendMessage(
+            userId,
+            "پلتفرم جستجو را انتخاب کنید:",
+            replyMarkup: new InlineKeyboardMarkup(rows),
+            cancellationToken: ct);
+    }
+
+    private async Task StartYouTubeSearchAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
+    {
+        if (!await botFeatures.CanUseYouTubeAsync(userId, ct))
+        {
+            await fileSender.SendTextAsync(bot, userId, BotFeatureService.YouTubeDisabledMessage, ct);
+            return;
+        }
+
+        conversationState.SetState(userId, MediaConversationState.AwaitingYouTubeQuery);
+        await fileSender.SendTextAsync(bot, userId, "عبارت جستجو را برای یوتیوب بفرستید:", ct);
+    }
+
+    private async Task StartPinterestSearchAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
+    {
+        if (!await botFeatures.CanUsePinterestAsync(userId, ct))
+        {
+            await fileSender.SendTextAsync(bot, userId, BotFeatureService.PinterestDisabledMessage, ct);
+            return;
+        }
+
+        conversationState.SetState(userId, MediaConversationState.AwaitingPinterestQuery);
+        await fileSender.SendTextAsync(bot, userId, "عبارت جستجو را برای پینترست بفرستید:", ct);
     }
 }

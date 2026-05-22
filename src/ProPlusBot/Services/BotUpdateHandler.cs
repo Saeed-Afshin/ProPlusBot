@@ -136,7 +136,7 @@ public class BotUpdateHandler(
         if (!privileged && !await userAccess.HasSubscriptionAccessAsync(userId, ct))
         {
             await SendAndStoreAsync(bot, userId,
-                $"{SubscriptionMessages.TrialExpired}\nاز «{SubscriptionBotHandler.BuyPlanButtonText}» یا «{SubscriptionBotHandler.UpgradeButtonText}» استفاده کنید.",
+                $"{SubscriptionMessages.TrialExpired}\nاز «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.",
                 ct);
             return;
         }

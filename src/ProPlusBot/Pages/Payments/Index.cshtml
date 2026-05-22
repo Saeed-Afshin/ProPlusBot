@@ -31,9 +31,9 @@
                 <td>@(p.Type == PaymentType.PlanUpgrade ? "ارتقا پلن" : p.Type == PaymentType.PlanPurchase ? "خرید پلن" : "سهمیه اضافه")</td>
                 <td>@p.AmountToman.ToString("N0")</td>
                 <td>@(p.Status switch { PaymentStatus.Pending => "در انتظار", PaymentStatus.Completed => "موفق", PaymentStatus.Failed => "ناموفق", PaymentStatus.Cancelled => "لغو", _ => p.Status.ToString() })</td>
-                <td>@(p.FromPlan?.ToString() ?? "—")</td>
-                <td>@(p.ToPlan?.ToString() ?? "—")</td>
-                <td>@(p.Platform?.ToString() ?? "—")</td>
+                <td>@(p.FromPlan is null ? "—" : MediaPlatformMapper.ToDisplayName(p.FromPlan.Value))</td>
+                <td>@(p.ToPlan is null ? "—" : MediaPlatformMapper.ToDisplayName(p.ToPlan.Value))</td>
+                <td>@(p.Platform is null ? "—" : MediaPlatformMapper.ToDisplayName(p.Platform.Value))</td>
             </tr>
         }
         </tbody>

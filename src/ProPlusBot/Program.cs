@@ -60,6 +60,7 @@ builder.Services.AddScoped<QuotaService>();
 builder.Services.AddScoped<PlanLifecycleService>();
 builder.Services.AddScoped<UserPlanLimitService>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<PlanCatalogService>();
 builder.Services.AddScoped<BalePaymentService>();
 builder.Services.AddScoped<SubscriptionAdminService>();
 builder.Services.AddScoped<TrialSettingsService>();
@@ -110,6 +111,15 @@ builder.Services.AddHostedService<PlanExpiryHostedService>();
 builder.Services.AddHostedService<BotHostedService>();
 
 var app = builder.Build();
+
+ConfigurationValidation.ValidateRequiredSettings(app.Configuration, app.Environment);
+
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+startupLogger.LogInformation(
+    "Running as {Environment}. Database: {Database}. Bot: {BotToken}",
+    app.Environment.EnvironmentName,
+    ConfigurationValidation.DescribeConnection(app.Configuration.GetConnectionString("DefaultConnection")),
+    ConfigurationValidation.MaskBotToken(app.Configuration["Bot:Token"]));
 
 using (var scope = app.Services.CreateScope())
 {
