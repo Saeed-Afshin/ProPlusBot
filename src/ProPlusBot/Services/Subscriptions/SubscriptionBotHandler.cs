@@ -20,11 +20,11 @@ public class SubscriptionBotHandler(
     ErrorLogService errorLog,
     AppDbContext db)
 {
-    public const string AccountButtonText = "حساب من";
-    public const string PlansButtonText = "پلن‌ها";
-    public const string UpgradeButtonText = "ارتقا پلن";
-    public const string BuyPlanButtonText = "خرید پلن";
-    public const string ExtraQuotaButtonText = "سهمیه اضافه";
+    public const string AccountButtonText = "👤 حساب من";
+    public const string PlansButtonText = "💎 بسته‌ها";
+    public const string UpgradeButtonText = "⬆️ ارتقای بسته";
+    public const string BuyPlanButtonText = "🛒 خرید بسته";
+    public const string ExtraQuotaButtonText = "➕ سهمیه اضافه";
 
     public const string CallbackMenuPrefix = "sub:menu:";
     public const string CallbackUpgradePrefix = "sub:up:";
@@ -126,7 +126,7 @@ public class SubscriptionBotHandler(
             {
                 await errorLog.LogExceptionAsync(
                     callback.From.Id,
-                    "خطا در ارسال فاکتور ارتقا پلن",
+                    "خطا در ارسال فاکتور ارتقای بسته",
                     ex,
                     nameof(SubscriptionBotHandler),
                     ct);
@@ -150,7 +150,7 @@ public class SubscriptionBotHandler(
             {
                 await errorLog.LogExceptionAsync(
                     callback.From.Id,
-                    "خطا در ارسال فاکتور خرید پلن",
+                    "خطا در ارسال فاکتور خرید بسته",
                     ex,
                     nameof(SubscriptionBotHandler),
                     ct);
@@ -171,8 +171,8 @@ public class SubscriptionBotHandler(
                 bot,
                 callback.From.Id,
                 activated
-                    ? "پلن رزرو شده با موفقیت فعال شد."
-                    : "فعال‌سازی ممکن نیست. پلن فعال دارید یا رزرو یافت نشد.",
+                    ? "بسته رزرو فعال شد. بسته قبلی لغو شد و سهمیه از نو محاسبه می‌شود."
+                    : "رزرو یافت نشد.",
                 ct);
             return true;
         }
@@ -258,23 +258,24 @@ public class SubscriptionBotHandler(
         var summary = await quotaService.GetAccountSummaryAsync(userId, ct);
         var lines = new List<string>
         {
-            $"پلن فعال: {MediaPlatformMapper.ToDisplayName(summary.EffectivePlan)}"
+            $"بسته فعال: {MediaPlatformMapper.ToDisplayName(summary.EffectivePlan)}"
         };
 
         if (summary.StoredPlan != summary.EffectivePlan)
-            lines.Add($"پلن ثبت‌شده: {MediaPlatformMapper.ToDisplayName(summary.StoredPlan)}");
+            lines.Add($"بسته ثبت‌شده: {MediaPlatformMapper.ToDisplayName(summary.StoredPlan)}");
 
         if (summary.PlanExpiresAt is null)
             lines.Add("انقضا: —");
         else
-            lines.Add($"انقضا: {PersianDateTimeHelper.ToShamsiDateString(summary.PlanExpiresAt)} {PersianDateTimeHelper.ToTimeString(summary.PlanExpiresAt)} (تهران)");
+            lines.Add($"انقضا: {PersianDateTimeHelper.ToShamsiDateString(summary.PlanExpiresAt)} {PersianDateTimeHelper.ToTimeString(summary.PlanExpiresAt)}");
 
         if (!summary.HasSubscriptionAccess)
             lines.Add("وضعیت: دوره آزمایشی پایان یافته");
         else
             lines.Add(summary.IsBanned ? "وضعیت: مسدود" : summary.IsTrialActive ? "وضعیت: آزمایشی فعال" : "وضعیت: فعال");
 
-        lines.Add($"تازه‌سازی ماهانه: اول هر ماه به وقت تهران ({PersianDateTimeHelper.ToShamsiMonthYearFromTehranLocal(IranTime.NowLocal)})");
+        lines.Add(
+            $"شروع دوره سهمیه: {PersianDateTimeHelper.ToShamsiDateString(summary.QuotaPeriodStartAt)} {PersianDateTimeHelper.ToTimeString(summary.QuotaPeriodStartAt)}");
         lines.Add(string.Empty);
 
         foreach (var q in summary.Quotas)
@@ -290,7 +291,7 @@ public class SubscriptionBotHandler(
 
         if (summary.ReservedPlans.Count > 0)
         {
-            lines.Add("پلن‌های رزرو:");
+            lines.Add("بسته‌های رزرو:");
             foreach (var r in summary.ReservedPlans)
                 lines.Add($"• {MediaPlatformMapper.ToDisplayName(r.Plan)} — {r.DurationDays} روز");
             lines.Add(string.Empty);
@@ -310,7 +311,7 @@ public class SubscriptionBotHandler(
                 var type = p.Type switch
                 {
                     PaymentType.PlanUpgrade => "ارتقا",
-                    PaymentType.PlanPurchase => "خرید پلن",
+                    PaymentType.PlanPurchase => "خرید بسته",
                     _ => "سهمیه اضافه"
                 };
                 var status = p.Status switch
@@ -326,7 +327,7 @@ public class SubscriptionBotHandler(
 
         await fileSender.SendTextAsync(bot, userId, string.Join('\n', lines), ct);
 
-        if (summary.ReservedPlans.Count > 0 && summary.IsTrialActive)
+        if (summary.ReservedPlans.Count > 0)
             await SendReservedPlanButtonsAsync(bot, userId, summary.ReservedPlans, ct);
     }
 
@@ -347,7 +348,7 @@ public class SubscriptionBotHandler(
 
         await bot.SendMessage(
             userId,
-            "برای فعال‌سازی یک پلن رزرو، دکمه زیر را بزنید:",
+            "برای جایگزینی بسته فعلی با یک بسته رزرو (سهمیه از نو)، دکمه زیر را بزنید:",
             replyMarkup: new InlineKeyboardMarkup(buttons),
             cancellationToken: ct);
     }
@@ -393,7 +394,7 @@ public class SubscriptionBotHandler(
 
         await bot.SendMessage(
             userId,
-            "برای مشاهده جزئیات و پرداخت، یک پلن را انتخاب کنید (ارتقا — پرداخت اختلاف قیمت):",
+            "برای مشاهده جزئیات و پرداخت، یک بسته را انتخاب کنید (ارتقا — پرداخت اختلاف قیمت):",
             replyMarkup: new InlineKeyboardMarkup(buttons),
             cancellationToken: ct);
     }
@@ -430,7 +431,7 @@ public class SubscriptionBotHandler(
 
         await bot.SendMessage(
             userId,
-            "برای مشاهده جزئیات و پرداخت، یک پلن را انتخاب کنید:",
+            "برای مشاهده جزئیات و پرداخت، یک بسته را انتخاب کنید:",
             replyMarkup: new InlineKeyboardMarkup(buttons),
             cancellationToken: ct);
     }
@@ -465,8 +466,8 @@ public class SubscriptionBotHandler(
 
         var rows = new List<InlineKeyboardButton[]>
         {
-            new[] { InlineKeyboardButton.WithCallbackData("پرداخت و صدور فاکتور", payCallback) },
-            new[] { InlineKeyboardButton.WithCallbackData("بازگشت", backCallback) }
+            new[] { InlineKeyboardButton.WithCallbackData("💳 پرداخت و صدور فاکتور", payCallback) },
+            new[] { InlineKeyboardButton.WithCallbackData("◀️ بازگشت", backCallback) }
         };
 
         await bot.SendMessage(

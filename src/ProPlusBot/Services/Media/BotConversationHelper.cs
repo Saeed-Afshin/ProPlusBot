@@ -1,3 +1,4 @@
+using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
 
 namespace ProPlusBot.Services.Media;
@@ -6,7 +7,7 @@ public static class BotConversationHelper
 {
     public const string StateResetMessage =
         "متوجه وضعیت گفتگوی شما نشدم و آن را بازنشانی کردم.\n" +
-        "لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های «جستجوی یوتیوب» و «جستجوی پینترست» استفاده کنید.";
+        $"لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های «{MediaConstants.YouTubeSearchButtonText}» و «{MediaConstants.PinterestSearchButtonText}» استفاده کنید.";
 
     public static bool IsMenuOrCommandText(string? text)
     {
@@ -23,6 +24,7 @@ public static class BotConversationHelper
                    or SubscriptionBotHandler.UpgradeButtonText
                    or SubscriptionBotHandler.BuyPlanButtonText
                    or SubscriptionBotHandler.ExtraQuotaButtonText
+                   or BotFeatureService.HelpButtonText
                    or UserAccessService.RestartButtonText;
     }
 

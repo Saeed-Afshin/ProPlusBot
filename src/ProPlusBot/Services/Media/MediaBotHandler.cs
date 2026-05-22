@@ -355,7 +355,9 @@ public class MediaBotHandler(
         for (var row = 0; row < usedRows; row++)
         {
             var buttonRow = new List<InlineKeyboardButton>();
-            for (var col = 0; col < columns; col++)
+            // RTL clients (Bale/Telegram fa) mirror each keyboard row; iterate columns
+            // right-to-left so on-screen order matches the left-to-right grid image.
+            for (var col = columns - 1; col >= 0; col--)
             {
                 var slot = row * columns + col;
                 if (slot >= itemCount)

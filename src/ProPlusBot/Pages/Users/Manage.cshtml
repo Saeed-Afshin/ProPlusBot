@@ -17,13 +17,13 @@
 {
     var s = Model.AccountSummary;
     <div class="card mb-4">
-        <div class="card-header">پلن فعال و مصرف</div>
+        <div class="card-header">بسته فعال و مصرف</div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-3"><strong>پلن فعال:</strong> @MediaPlatformMapper.ToDisplayName(s.EffectivePlan)</div>
+                <div class="col-md-3"><strong>بسته فعال:</strong> @MediaPlatformMapper.ToDisplayName(s.EffectivePlan)</div>
                 @if (s.StoredPlan != s.EffectivePlan)
                 {
-                    <div class="col-md-3"><strong>پلن ثبت‌شده:</strong> @MediaPlatformMapper.ToDisplayName(s.StoredPlan)</div>
+                    <div class="col-md-3"><strong>بسته ثبت‌شده:</strong> @MediaPlatformMapper.ToDisplayName(s.StoredPlan)</div>
                 }
                 <div class="col-md-3">
                     <strong>انقضا:</strong>
@@ -39,7 +39,7 @@
                 <div class="col-md-3"><strong>وضعیت:</strong> @(s.IsBanned ? "مسدود" : "فعال")</div>
             </div>
             <p class="text-muted small mb-3">
-                بازه روزانه از نیمه‌شب و بازه ماهانه از اول هر ماه (به وقت تهران).
+                بازه روزانه از نیمه‌شب؛ سهمیه ماهانه از زمان فعال‌سازی بسته.
                 اعداد به صورت <strong>مصرف / سقف</strong>.
             </p>
             <div class="table-responsive">
@@ -84,10 +84,10 @@
     @if (Model.ReservedPlans.Count > 0)
     {
         <div class="card mb-4">
-            <div class="card-header">پلن‌های رزرو</div>
+            <div class="card-header">بسته‌های رزرو</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>پلن</th><th>مدت (روز)</th><th>تاریخ رزرو</th><th></th></tr></thead>
+                    <thead><tr><th>بسته</th><th>مدت (روز)</th><th>تاریخ رزرو</th><th></th></tr></thead>
                     <tbody>
                     @foreach (var r in Model.ReservedPlans)
                     {
@@ -114,10 +114,10 @@
     {
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span>محدودیت‌های اختصاصی کاربر (پلن فعال: @MediaPlatformMapper.ToDisplayName(s.EffectivePlan))</span>
+                <span>محدودیت‌های اختصاصی کاربر (بسته فعال: @MediaPlatformMapper.ToDisplayName(s.EffectivePlan))</span>
                 <form method="post" asp-page-handler="ClearUserLimits" class="m-0">
                     <input type="hidden" asp-for="EditUserId" />
-                    <button type="submit" class="btn btn-sm btn-outline-warning">بازگشت به پیش‌فرض پلن</button>
+                    <button type="submit" class="btn btn-sm btn-outline-warning">بازگشت به پیش‌فرض بسته</button>
                 </form>
             </div>
             <div class="card-body p-0">
@@ -171,7 +171,7 @@
                 <input asp-for="EditUserId" class="form-control" />
             </div>
             <div class="col-md-2">
-                <label class="form-label">پلن</label>
+                <label class="form-label">بسته</label>
                 <select asp-for="EditPlan" class="form-select" asp-items="MediaPlatformMapper.GetPlanSelectList(Model.EditPlan)"></select>
             </div>
             <div class="col-md-3">
@@ -197,7 +197,7 @@
                        title="00:00:00 تا 23:59:59" />
             </div>
             <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">تعیین پلن</button>
+                <button type="submit" class="btn btn-primary w-100">تعیین بسته</button>
             </div>
         </form>
 

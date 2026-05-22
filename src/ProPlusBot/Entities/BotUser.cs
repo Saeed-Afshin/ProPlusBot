@@ -12,6 +12,8 @@ public class BotUser
     public bool HasJoinedChannel { get; set; }
     public SubscriptionPlan Plan { get; set; } = SubscriptionPlan.Free;
     public DateTime? PlanExpiresAt { get; set; }
+    /// <summary>UTC instant when the current quota period began (plan/trial activation).</summary>
+    public DateTime? QuotaPeriodStartAt { get; set; }
     public bool IsBanned { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

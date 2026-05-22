@@ -3,10 +3,10 @@
 @using ProPlusBot.Services.Subscriptions
 @model ProPlusBot.Pages.Plans.IndexModel
 @{
-    ViewData["Title"] = "پلن‌ها";
+    ViewData["Title"] = "بسته‌ها";
 }
 
-<h2 class="mb-4">پلن‌ها و محدودیت‌ها</h2>
+<h2 class="mb-4">بسته‌ها و محدودیت‌ها</h2>
 
 @if (Model.SuccessMessage is not null)
 {
@@ -14,20 +14,20 @@
 }
 
 <div class="card mb-4">
-    <div class="card-header">پلن آزمایشی (Trial)</div>
+    <div class="card-header">بسته آزمایشی (Trial)</div>
     <div class="card-body">
         <form method="post" asp-page-handler="SaveTrial" class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label class="form-label" asp-for="PostedTrialDurationDays">مدت دوره آزمایشی (روز)</label>
                 <input asp-for="PostedTrialDurationDays" class="form-control" type="number" min="1" max="365" />
-                <div class="form-text">کاربران جدید تا این مدت می‌توانند از ربات استفاده کنند. پس از آن باید پلن بخرند.</div>
+                <div class="form-text">کاربران جدید تا این مدت می‌توانند از ربات استفاده کنند. پس از آن باید بسته بخرند.</div>
             </div>
             <div class="col-md-4">
                 <button type="submit" class="btn btn-primary">ذخیره مدت آزمایشی</button>
             </div>
         </form>
         <p class="text-muted small mb-0 mt-3">
-            محدودیت‌های جستجو و دانلود پلن آزمایشی در جدول زیر (ستون «آزمایشی») قابل ویرایش است.
+            محدودیت‌های جستجو و دانلود بسته آزمایشی در جدول زیر (ستون «آزمایشی») قابل ویرایش است.
         </p>
     </div>
 </div>

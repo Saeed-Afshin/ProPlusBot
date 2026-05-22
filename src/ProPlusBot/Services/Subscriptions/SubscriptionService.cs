@@ -26,7 +26,7 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         if (!CanUserUpgradeTo(user.Plan, targetPlan))
-            throw new InvalidOperationException("ارتقا به این پلن مجاز نیست.");
+            throw new InvalidOperationException("ارتقا به این بسته مجاز نیست.");
 
         var prices = await db.PlanPricings.AsNoTracking()
             .ToDictionaryAsync(p => p.Plan, p => p.MonthlyPriceToman, ct);
@@ -39,10 +39,10 @@ public class SubscriptionService(
     {
         var row = await db.PlanPricings.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Plan == plan, ct)
-            ?? throw new InvalidOperationException("قیمت پلن یافت نشد.");
+            ?? throw new InvalidOperationException("قیمت بسته یافت نشد.");
 
         if (row.MonthlyPriceToman <= 0)
-            throw new InvalidOperationException("این پلن قابل خرید نیست.");
+            throw new InvalidOperationException("این بسته قابل خرید نیست.");
 
         return row.MonthlyPriceToman;
     }
@@ -92,7 +92,7 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         if (targetPlan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن آزمایشی قابل خرید نیست.");
+            throw new InvalidOperationException("بسته آزمایشی قابل خرید نیست.");
 
         var amountToman = await GetPlanPurchasePriceAsync(targetPlan, ct);
 
@@ -186,7 +186,7 @@ public class SubscriptionService(
         {
             var isUpgrade = payment.Type == PaymentType.PlanUpgrade;
             if (isUpgrade && !CanUserUpgradeTo(user.Plan, payment.ToPlan.Value))
-                throw new InvalidOperationException("ارتقای پلن برای این پرداخت معتبر نیست.");
+                throw new InvalidOperationException("ارتقای بسته برای این پرداخت معتبر نیست.");
 
             var result = await planLifecycle.FulfillPlanPaymentAsync(user, payment.ToPlan.Value, isUpgrade, ct);
             user.UpdatedAt = DateTime.UtcNow;
@@ -233,7 +233,15 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         user.Plan = plan;
-        user.PlanExpiresAt = plan == SubscriptionPlan.Free ? null : expiresAt ?? DateTime.UtcNow.AddDays(_paymentOptions.PlanDurationDays);
+        user.PlanExpiresAt = plan == SubscriptionPlan.Free
+            ? expiresAt
+            : expiresAt ?? DateTime.UtcNow.AddDays(_paymentOptions.PlanDurationDays);
+
+        if (user.PlanExpiresAt is not null && user.PlanExpiresAt > DateTime.UtcNow)
+            user.QuotaPeriodStartAt = DateTime.UtcNow;
+        else
+            user.QuotaPeriodStartAt = null;
+
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -244,7 +252,7 @@ public class SubscriptionService(
             ?? throw new InvalidOperationException("User not found.");
 
         if (user.Plan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن آزمایشی از پنل ادمین قابل تمدید است.");
+            throw new InvalidOperationException("بسته آزمایشی از پنل ادمین قابل تمدید است.");
 
         var baseDate = user.PlanExpiresAt is null || user.PlanExpiresAt < DateTime.UtcNow
             ? DateTime.UtcNow

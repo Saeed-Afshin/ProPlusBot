@@ -20,6 +20,7 @@ public class ChatStorageService(AppDbContext db, TrialSettingsService trialSetti
                 TelegramUserId = user.Id,
                 Plan = SubscriptionPlan.Free,
                 PlanExpiresAt = DateTime.UtcNow.AddDays(trialDays),
+                QuotaPeriodStartAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
             db.BotUsers.Add(entity);

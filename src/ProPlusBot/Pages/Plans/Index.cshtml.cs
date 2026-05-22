@@ -63,7 +63,7 @@ public class IndexModel(SubscriptionAdminService adminService, TrialSettingsServ
             await adminService.UpdatePricingAsync((SubscriptionPlan)planKey, price, ct);
         }
 
-        SuccessMessage = "قیمت ماهانه پلن‌ها ذخیره شد.";
+        SuccessMessage = "قیمت ماهانه بسته‌ها ذخیره شد.";
         return await ReloadAsync(ct);
     }
 

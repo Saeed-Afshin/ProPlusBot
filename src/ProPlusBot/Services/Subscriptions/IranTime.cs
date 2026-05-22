@@ -15,10 +15,6 @@ public static class IranTime
     /// <summary>UTC instant of today's 00:00 in Tehran.</summary>
     public static DateTime DailyPeriodStartUtc => LocalDateStartToUtc(NowLocal.Date);
 
-    /// <summary>UTC instant of this month's 00:00 (Tehran) on day 1.</summary>
-    public static DateTime MonthlyPeriodStartUtc =>
-        LocalDateStartToUtc(new DateTime(NowLocal.Year, NowLocal.Month, 1));
-
     private static DateTime LocalDateStartToUtc(DateTime localDate)
     {
         var unspecified = DateTime.SpecifyKind(localDate, DateTimeKind.Unspecified);

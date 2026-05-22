@@ -154,7 +154,8 @@ public class UserAccessService(
         await db.SaveChangesAsync(ct);
     }
 
-    public const string RestartButtonText = "شروع مجدد";
+    public const string SharePhoneButtonText = "📱 اشتراک شماره تماس";
+    public const string RestartButtonText = "🔄 شروع مجدد";
 
     public static bool IsStartCommand(string? text) =>
         !string.IsNullOrWhiteSpace(text) && (
@@ -163,7 +164,7 @@ public class UserAccessService(
             text.Trim() == RestartButtonText);
 
     public static ReplyKeyboardMarkup PhoneRequestKeyboard() =>
-        new([[KeyboardButton.WithRequestContact("اشتراک شماره تماس")]])
+        new([[KeyboardButton.WithRequestContact(SharePhoneButtonText)]])
         {
             ResizeKeyboard = true,
             OneTimeKeyboard = true
@@ -176,5 +177,5 @@ public class UserAccessService(
         };
 
     public string OnboardingMessage() =>
-        $"برای استفاده از ربات، شماره تماس را فقط با دکمه «اشتراک شماره تماس» ارسال کنید (ارسال متنی پذیرفته نیست)، سپس در کانال {_botOptions.RequiredChannelUsername} عضو شوید.";
+        $"برای استفاده از ربات، شماره تماس را فقط با دکمه «{SharePhoneButtonText}» ارسال کنید (ارسال متنی پذیرفته نیست)، سپس در کانال {_botOptions.RequiredChannelUsername} عضو شوید.";
 }

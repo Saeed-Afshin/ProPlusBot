@@ -97,7 +97,7 @@ public class BotUpdateHandler(
         if (!await HasSharedPhoneAsync(userId, ct) && PhoneInputValidator.LooksLikePhoneNumber(message.Text))
         {
             await PromptPhoneKeyboardAsync(bot, userId,
-                "ارسال شماره به صورت متن پذیرفته نیست. لطفاً فقط از دکمه «اشتراک شماره تماس» استفاده کنید.", ct);
+                $"ارسال شماره به صورت متن پذیرفته نیست. لطفاً فقط از دکمه «{UserAccessService.SharePhoneButtonText}» استفاده کنید.", ct);
             return;
         }
 
@@ -127,6 +127,13 @@ public class BotUpdateHandler(
         if (!privileged && await IsBannedAsync(userId, ct))
         {
             await SendAndStoreAsync(bot, userId, "حساب شما مسدود شده است.", ct);
+            return;
+        }
+
+        if (message.Text?.Trim() == BotFeatureService.HelpButtonText)
+        {
+            conversationState.Clear(userId);
+            await SendAndStoreAsync(bot, userId, await botFeatures.BuildHelpMessageAsync(userId, ct), ct);
             return;
         }
 

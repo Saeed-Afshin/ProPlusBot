@@ -21,6 +21,7 @@ public record UserAccountSummaryDto(
     SubscriptionPlan EffectivePlan,
     SubscriptionPlan StoredPlan,
     DateTime? PlanExpiresAt,
+    DateTime QuotaPeriodStartAt,
     bool IsBanned,
     bool HasSubscriptionAccess,
     bool IsTrialActive,

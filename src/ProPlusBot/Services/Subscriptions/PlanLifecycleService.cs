@@ -71,7 +71,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
         CancellationToken ct = default)
     {
         if (plan == SubscriptionPlan.Free)
-            throw new InvalidOperationException("پلن آزمایشی قابل رزرو نیست.");
+            throw new InvalidOperationException("بسته آزمایشی قابل رزرو نیست.");
 
         db.UserReservedPlans.Add(new UserReservedPlan
         {
@@ -101,9 +101,6 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
         if (reserved is null)
             return false;
 
-        if (IsPaidPlanActive(user))
-            return false;
-
         db.UserReservedPlans.Remove(reserved);
         await ActivatePlanAsync(user, reserved.Plan, reserved.DurationDays, ct);
         return true;
@@ -126,6 +123,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
     {
         user.Plan = plan;
         user.PlanExpiresAt = DateTime.UtcNow.AddDays(durationDays);
+        user.QuotaPeriodStartAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -146,6 +144,7 @@ public class PlanLifecycleService(AppDbContext db, IOptions<PaymentOptions> paym
 
         user.Plan = SubscriptionPlan.Free;
         user.PlanExpiresAt = null;
+        user.QuotaPeriodStartAt = null;
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }

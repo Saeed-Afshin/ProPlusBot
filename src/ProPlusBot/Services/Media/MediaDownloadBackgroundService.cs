@@ -92,7 +92,7 @@ public class MediaDownloadProcessor(
                 var (allowed, message) = await quotaService.ValidateFileSizeAsync(job.ChatId, platformKind, fileSize, ct);
                 if (!allowed)
                 {
-                    await fileSender.SendTextAsync(bot, job.ChatId, message ?? "فایل برای پلن شما بزرگ است.", ct);
+                    await fileSender.SendTextAsync(bot, job.ChatId, message ?? "فایل برای بسته شما بزرگ است.", ct);
                     return;
                 }
             }

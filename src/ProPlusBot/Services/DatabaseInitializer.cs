@@ -32,12 +32,14 @@ public class DatabaseInitializer(AppDbContext db, TrialSettingsService trialSett
         await trialSettings.GetAsync(ct);
 
         await RemoveObsoleteDailyLimitsAsync(ct);
-        await EnsureSearchLimitsAsync(ct);
 
         if (!await db.PlanPlatformLimits.AnyAsync(ct))
             db.PlanPlatformLimits.AddRange(SubscriptionSeedData.DefaultLimits());
         else
+        {
+            await EnsureSearchLimitsAsync(ct);
             await EnsureMaxFileLimitsAsync(ct);
+        }
 
         if (!await db.PlanPricings.AnyAsync(ct))
             db.PlanPricings.AddRange(SubscriptionSeedData.DefaultPricing());
@@ -109,6 +111,7 @@ public class DatabaseInitializer(AppDbContext db, TrialSettingsService trialSett
         foreach (var user in users)
         {
             user.PlanExpiresAt = expiresAt;
+            user.QuotaPeriodStartAt ??= user.CreatedAt;
             user.UpdatedAt = DateTime.UtcNow;
         }
     }

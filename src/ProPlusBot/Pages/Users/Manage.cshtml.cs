@@ -75,7 +75,7 @@ public class ManageModel(
                 EditExpiresTime);
 
             await subscriptionService.ApplyAdminPlanChangeAsync(EditUserId, EditPlan, expiresAt, ct);
-            SuccessMessage = "پلن کاربر به‌روزرسانی شد.";
+            SuccessMessage = "بسته کاربر به‌روزرسانی شد.";
             await LoadUserAsync(EditUserId, ct);
         }
         catch (Exception ex)
@@ -139,7 +139,7 @@ public class ManageModel(
             return RedirectToPage("/Login");
 
         await userPlanLimitService.ClearUserLimitsAsync(EditUserId, ct);
-        SuccessMessage = "محدودیت‌های سفارشی کاربر حذف شد (پیش‌فرض پلن اعمال می‌شود).";
+        SuccessMessage = "محدودیت‌های سفارشی کاربر حذف شد (پیش‌فرض بسته اعمال می‌شود).";
         await LoadUserAsync(EditUserId, ct);
         return Page();
     }
@@ -156,7 +156,7 @@ public class ManageModel(
         {
             db.UserReservedPlans.Remove(row);
             await db.SaveChangesAsync(ct);
-            SuccessMessage = "پلن رزرو حذف شد.";
+            SuccessMessage = "بسته رزرو حذف شد.";
         }
 
         await LoadUserAsync(EditUserId, ct);

@@ -30,7 +30,7 @@ public class BalePaymentService(
         await SendInvoiceAsync(
             chatId,
             $"ارتقا به {MediaPlatformMapper.ToDisplayName(targetPlan)}",
-            $"پرداخت اختلاف قیمت برای ارتقا از پلن فعلی به {MediaPlatformMapper.ToDisplayName(targetPlan)}.",
+            $"پرداخت اختلاف قیمت برای ارتقا از بسته فعلی به {MediaPlatformMapper.ToDisplayName(targetPlan)}.",
             payment,
             ct);
     }
@@ -41,8 +41,8 @@ public class BalePaymentService(
         var payment = await subscriptionService.CreatePlanPurchasePaymentAsync(chatId, targetPlan, ct);
         await SendInvoiceAsync(
             chatId,
-            $"خرید پلن {MediaPlatformMapper.ToDisplayName(targetPlan)}",
-            $"خرید یک ماه اشتراک {MediaPlatformMapper.ToDisplayName(targetPlan)}. در صورت داشتن پلن فعال، در صف رزرو قرار می‌گیرد.",
+            $"خرید بسته {MediaPlatformMapper.ToDisplayName(targetPlan)}",
+            $"خرید یک ماه بسته {MediaPlatformMapper.ToDisplayName(targetPlan)}. در صورت داشتن بسته فعال، در صف رزرو قرار می‌گیرد.",
             payment,
             ct);
     }
@@ -198,17 +198,17 @@ public class BalePaymentService(
 
         var planName = payment.ToPlan is not null
             ? MediaPlatformMapper.ToDisplayName(payment.ToPlan.Value)
-            : "پلن";
+            : "بسته";
 
         return fulfillment switch
         {
             PlanFulfillmentResult.Reserved =>
-                $"پرداخت موفق بود. پلن «{planName}» در صف رزرو شما قرار گرفت. از «حساب من» می‌توانید آن را فعال کنید.",
+                $"پرداخت موفق بود. بسته «{planName}» در صف رزرو شما قرار گرفت. از «{SubscriptionBotHandler.AccountButtonText}» می‌توانید آن را فعال کنید.",
             PlanFulfillmentResult.Upgraded =>
-                $"پرداخت موفق بود. پلن شما به «{planName}» ارتقا یافت.",
+                $"پرداخت موفق بود. بسته شما به «{planName}» ارتقا یافت.",
             PlanFulfillmentResult.Activated =>
-                $"پرداخت موفق بود. پلن «{planName}» برای شما فعال شد.",
-            _ => $"پرداخت موفق بود. پلن «{planName}» ثبت شد."
+                $"پرداخت موفق بود. بسته «{planName}» برای شما فعال شد.",
+            _ => $"پرداخت موفق بود. بسته «{planName}» ثبت شد."
         };
     }
 

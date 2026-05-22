@@ -43,7 +43,7 @@ public static class PersianDateTimeHelper
         return $"{ToShamsiDateString(utc)} {ToTimeString(utc)}";
     }
 
-    /// <summary>Shamsi date and 24h time in Asia/Tehran.</summary>
+    /// <summary>Shamsi date and 24h time in the app time zone.</summary>
     public static string FormatTehranDisplay(DateTime utc) =>
         $"{ToShamsiDateString(utc)} {ToTimeString(utc)}";
 

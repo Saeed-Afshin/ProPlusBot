@@ -89,7 +89,7 @@ public class SubscriptionAdminService(AppDbContext db)
     public async Task UpdatePricingAsync(SubscriptionPlan plan, long monthlyPriceToman, CancellationToken ct = default)
     {
         var row = await db.PlanPricings.FirstOrDefaultAsync(p => p.Plan == plan, ct)
-            ?? throw new InvalidOperationException("قیمت پلن یافت نشد.");
+            ?? throw new InvalidOperationException("قیمت بسته یافت نشد.");
 
         row.MonthlyPriceToman = Math.Max(0, monthlyPriceToman);
         row.UpdatedAt = DateTime.UtcNow;

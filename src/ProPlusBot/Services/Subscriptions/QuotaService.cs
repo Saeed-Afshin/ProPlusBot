@@ -46,7 +46,7 @@ public class QuotaService(
             return (false, SubscriptionMessages.TrialExpired);
 
         var plan = await GetEffectivePlanAsync(telegramUserId, ct);
-        var monthlyStart = IranTime.MonthlyPeriodStartUtc;
+        var monthlyStart = await GetQuotaPeriodStartUtcAsync(telegramUserId, ct);
 
         var adjustments = await GetAdjustmentsAsync(telegramUserId, platform, ct);
         var monthly = await GetDownloadUsageAsync(telegramUserId, platform, monthlyStart, ct);
@@ -88,7 +88,7 @@ public class QuotaService(
             return (false, SubscriptionMessages.TrialExpired);
 
         var plan = await GetEffectivePlanAsync(telegramUserId, ct);
-        var monthlyStart = IranTime.MonthlyPeriodStartUtc;
+        var monthlyStart = await GetQuotaPeriodStartUtcAsync(telegramUserId, ct);
         var searchUsed = await GetSearchUsageAsync(telegramUserId, platform, monthlyStart, ct);
         var limits = await userPlanLimitService.ResolveLimitsAsync(telegramUserId, plan, platform, ct);
         var searchLimit = GetLimit(limits, UsagePeriod.Monthly, QuotaLimitKind.SearchCount);
@@ -139,7 +139,7 @@ public class QuotaService(
             return (true, null);
 
         return (false,
-            $"حداکثر حجم هر فایل {MediaPlatformMapper.ToDisplayName(platform)} برای پلن شما {ByteUnits.FormatMegabytes(maxFileBytes)} است.");
+            $"حداکثر حجم هر فایل {MediaPlatformMapper.ToDisplayName(platform)} برای بسته شما {ByteUnits.FormatMegabytes(maxFileBytes)} است.");
     }
 
     public async Task RecordDownloadAsync(
@@ -166,7 +166,7 @@ public class QuotaService(
         CancellationToken ct)
     {
         var plan = await GetEffectivePlanAsync(telegramUserId, ct);
-        var monthlyStart = IranTime.MonthlyPeriodStartUtc;
+        var monthlyStart = await GetQuotaPeriodStartUtcAsync(telegramUserId, ct);
         var monthly = await GetDownloadUsageAsync(telegramUserId, platform, monthlyStart, ct);
         var limits = await userPlanLimitService.ResolveLimitsAsync(telegramUserId, plan, platform, ct);
 
@@ -215,6 +215,7 @@ public class QuotaService(
             effectivePlan,
             user.Plan,
             user.PlanExpiresAt,
+            QuotaPeriodHelper.GetPeriodStartUtc(user),
             user.IsBanned,
             PlanLifecycleService.HasSubscriptionAccess(user),
             PlanLifecycleService.IsTrialActive(user),
@@ -228,7 +229,7 @@ public class QuotaService(
         MediaPlatformKind platform,
         CancellationToken ct)
     {
-        var monthlyStart = IranTime.MonthlyPeriodStartUtc;
+        var monthlyStart = await GetQuotaPeriodStartUtcAsync(telegramUserId, ct);
         var adjustments = await GetAdjustmentsAsync(telegramUserId, platform, ct);
         var monthly = await GetDownloadUsageAsync(telegramUserId, platform, monthlyStart, ct);
         var searchUsed = await GetSearchUsageAsync(telegramUserId, platform, monthlyStart, ct);
@@ -256,6 +257,14 @@ public class QuotaService(
             .FirstOrDefaultAsync(a => a.TelegramUserId == telegramUserId && a.Platform == platform, ct);
 
         return row is null ? (0, 0) : (row.ExtraDownloadCount, row.ExtraDownloadBytes);
+    }
+
+    private async Task<DateTime> GetQuotaPeriodStartUtcAsync(long telegramUserId, CancellationToken ct)
+    {
+        var user = await db.BotUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct);
+
+        return user is null ? DateTime.UtcNow : QuotaPeriodHelper.GetPeriodStartUtc(user);
     }
 
     private async Task<(long Count, long Bytes)> GetDownloadUsageAsync(

@@ -30,8 +30,8 @@ public class IndexModel(SubscriptionAdminService adminService) : PageModel
 
     public static string TypeLabel(PaymentType type) => type switch
     {
-        PaymentType.PlanUpgrade => "ارتقا پلن",
-        PaymentType.PlanPurchase => "خرید پلن",
+        PaymentType.PlanUpgrade => "ارتقای بسته",
+        PaymentType.PlanPurchase => "خرید بسته",
         PaymentType.ExtraQuota => "سهمیه اضافه",
         _ => type.ToString()
     };

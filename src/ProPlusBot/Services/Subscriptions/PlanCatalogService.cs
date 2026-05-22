@@ -29,10 +29,10 @@ public class PlanCatalogService(AppDbContext db, IOptions<PaymentOptions> paymen
             .ToListAsync(ct);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"📦 پلن {MediaPlatformMapper.ToDisplayName(plan)}");
+        sb.AppendLine($"📦 بسته {MediaPlatformMapper.ToDisplayName(plan)}");
         sb.AppendLine();
         sb.AppendLine($"مدت اشتراک: {_paymentOptions.PlanDurationDays} روز");
-        sb.AppendLine($"تازه‌سازی سهمیه ماهانه: اول هر ماه به وقت تهران");
+        sb.AppendLine("تازه‌سازی سهمیه: از زمان فعال‌سازی بسته");
 
         if (offerPriceToman is not null)
         {
@@ -43,9 +43,9 @@ public class PlanCatalogService(AppDbContext db, IOptions<PaymentOptions> paymen
         }
 
         if (mode == PlanOfferMode.Buy)
-            sb.AppendLine("در صورت داشتن پلن فعال، پس از خرید در صف رزرو قرار می‌گیرد.");
+            sb.AppendLine("در صورت داشتن بسته فعال، پس از خرید در صف رزرو قرار می‌گیرد.");
         else
-            sb.AppendLine("پس از پرداخت، در صورت پلن فعال بلافاصله اعمال می‌شود.");
+            sb.AppendLine("پس از پرداخت، در صورت بسته فعال بلافاصله اعمال می‌شود.");
 
         sb.AppendLine();
 
