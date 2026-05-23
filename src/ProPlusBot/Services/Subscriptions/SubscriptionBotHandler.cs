@@ -129,7 +129,8 @@ public class SubscriptionBotHandler(
                     "خطا در ارسال فاکتور ارتقای بسته",
                     ex,
                     nameof(SubscriptionBotHandler),
-                    ct);
+                    ErrorLogServices.Subscription,
+                    ct: ct);
                 await fileSender.SendTextAsync(bot, callback.From.Id, ex.Message, ct);
             }
 
@@ -153,7 +154,8 @@ public class SubscriptionBotHandler(
                     "خطا در ارسال فاکتور خرید بسته",
                     ex,
                     nameof(SubscriptionBotHandler),
-                    ct);
+                    ErrorLogServices.Subscription,
+                    ct: ct);
                 await fileSender.SendTextAsync(bot, callback.From.Id, ex.Message, ct);
             }
 
@@ -194,7 +196,8 @@ public class SubscriptionBotHandler(
                     "خطا در ارسال فاکتور سهمیه اضافه",
                     ex,
                     nameof(SubscriptionBotHandler),
-                    ct);
+                    ErrorLogServices.FromMediaPlatformKind(platform),
+                    ct: ct);
                 await fileSender.SendTextAsync(bot, callback.From.Id, ex.Message, ct);
             }
 

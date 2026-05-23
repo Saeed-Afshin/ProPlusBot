@@ -15,6 +15,8 @@ public class ErrorLogAdminService(AppDbContext db)
                 e.TelegramUserId,
                 e.PhoneNumber,
                 e.Title,
+                e.Service,
+                e.Source,
                 e.CreatedAt))
             .ToListAsync(ct);
 
@@ -27,6 +29,7 @@ public class ErrorLogAdminService(AppDbContext db)
                 e.PhoneNumber,
                 e.Title,
                 e.Detail,
+                e.Service,
                 e.Source,
                 e.CreatedAt))
             .FirstOrDefaultAsync(ct);

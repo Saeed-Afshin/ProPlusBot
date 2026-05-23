@@ -5,6 +5,14 @@
     ViewData["Title"] = "تنظیمات ربات";
 }
 <h1 class="h3 mb-4">تنظیمات ربات</h1>
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.WarningMessage))
+{
+    <div class="alert alert-warning">@Model.WarningMessage</div>
+}
 @if (!string.IsNullOrEmpty(Model.SuccessMessage))
 {
     <div class="alert alert-success">@Model.SuccessMessage</div>
@@ -31,6 +39,34 @@
     <div class="form-check mb-3">
         <input asp-for="YouTubeEnabled" class="form-check-input" />
         <label asp-for="YouTubeEnabled" class="form-check-label">یوتیوب (جستجو و دانلود لینک)</label>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" asp-for="YouTubeCookiesPaste">کوکی یوتیوب (Netscape یا Base64)</label>
+        @if (Model.YouTubeCookiesConfigured)
+        {
+            <div class="alert alert-secondary py-2 mb-2">
+                کوکی در پایگاه داده ذخیره شده است.
+                @if (Model.YouTubeCookiesUpdatedAt.HasValue)
+                {
+                    <span> آخرین بروزرسانی (تهران): <span dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(Model.YouTubeCookiesUpdatedAt.Value)</span></span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="form-text mb-2">هنوز کوکی تنظیم نشده — برای دانلود یوتیوب لازم است.</div>
+        }
+        <textarea asp-for="YouTubeCookiesPaste" class="form-control font-monospace" rows="8"
+                  placeholder="محتوای cookies.txt یا یک خط Base64 را اینجا بچسبانید. خالی بگذارید تا کوکی فعلی حفظ شود."></textarea>
+        <div class="form-text">
+            پس از انقضای کوکی، محتوای جدید را بچسبانید و ذخیره کنید — بدون redeploy.
+            هشدار زرد یعنی کوکی ذخیره شده اما برای عبور از bot یوتیوب باید با <strong>حساب Google وارد شده</strong> export کنید (SID / LOGIN_INFO).
+            فایل روی سرور: <code dir="ltr">/tmp/ProPlusBot/youtube-cookies/youtube-cookies.active.txt</code>
+        </div>
+        <div class="form-check mt-2">
+            <input asp-for="ClearYouTubeCookies" class="form-check-input" />
+            <label asp-for="ClearYouTubeCookies" class="form-check-label">حذف کوکی ذخیره‌شده</label>
+        </div>
     </div>
     <div class="form-check mb-3">
         <input asp-for="PinterestEnabled" class="form-check-input" />

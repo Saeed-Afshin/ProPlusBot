@@ -116,6 +116,16 @@ public class QuotaService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<long> GetMaxFileBytesAsync(
+        long telegramUserId,
+        MediaPlatformKind platform,
+        CancellationToken ct = default)
+    {
+        var plan = await GetEffectivePlanAsync(telegramUserId, ct);
+        var limits = await userPlanLimitService.ResolveLimitsAsync(telegramUserId, plan, platform, ct);
+        return ResolveMaxFileBytes(limits);
+    }
+
     public async Task<(bool Allowed, string? Message)> ValidateFileSizeAsync(
         long telegramUserId,
         MediaPlatformKind platform,

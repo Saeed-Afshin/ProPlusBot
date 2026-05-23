@@ -31,6 +31,7 @@ public record UserAccountSummaryDto(
 public record PaymentRecordDto(
     Guid Id,
     long TelegramUserId,
+    string? UserDisplayName,
     string? PhoneNumber,
     PaymentType Type,
     PaymentStatus Status,

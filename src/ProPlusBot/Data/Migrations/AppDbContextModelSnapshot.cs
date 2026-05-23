@@ -108,6 +108,12 @@ namespace ProPlusBot.Data.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
+                    b.Property<string>("YouTubeCookiesContent")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("YouTubeCookiesUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("YouTubeEnabled")
                         .HasColumnType("boolean");
 
@@ -255,6 +261,10 @@ namespace ProPlusBot.Data.Migrations
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Service")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Source")
                         .HasMaxLength(128)

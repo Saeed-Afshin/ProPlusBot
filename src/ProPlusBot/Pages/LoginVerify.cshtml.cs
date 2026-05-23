@@ -1,14 +1,17 @@
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using ProPlusBot.Auth;
+using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
 using ProPlusBot.Services;
 
 namespace ProPlusBot.Pages;
 
-public class LoginVerifyModel(OtpService otpService) : PageModel
+public class LoginVerifyModel(
+    OtpService otpService,
+    AdminJwtTokenService jwtTokenService,
+    IOptions<JwtOptions> jwtOptions) : PageModel
 {
     [BindProperty]
     public string PhoneNumber { get; set; } = string.Empty;
@@ -45,22 +48,9 @@ public class LoginVerifyModel(OtpService otpService) : PageModel
             return Page();
         }
 
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, admin.TelegramUserId.ToString()),
-            new(ClaimTypes.Name, admin.DisplayName ?? admin.PhoneNumber),
-            new(AuthConstants.RoleClaim, admin.Role.ToString())
-        };
-
-        if (admin.Id.HasValue)
-            claims.Add(new Claim(AuthConstants.AdminIdClaim, admin.Id.Value.ToString()));
-
-        if (admin.IsConfigSuperAdmin)
-            claims.Add(new Claim(AuthConstants.ConfigSuperAdminClaim, "true"));
-
-        await HttpContext.SignInAsync(
-            AuthConstants.Scheme,
-            new ClaimsPrincipal(new ClaimsIdentity(claims, AuthConstants.Scheme)));
+        var claims = AdminAuthHelper.BuildClaims(admin);
+        var token = jwtTokenService.CreateToken(claims);
+        AdminAuthHelper.SetAuthCookie(Response, Request, token, jwtOptions.Value);
 
         return RedirectToPage("/Index");
     }

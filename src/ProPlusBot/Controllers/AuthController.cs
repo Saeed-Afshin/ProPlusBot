@@ -1,8 +1,8 @@
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using ProPlusBot.Auth;
+using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
 using ProPlusBot.Services;
@@ -11,7 +11,10 @@ namespace ProPlusBot.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(OtpService otpService) : ControllerBase
+public class AuthController(
+    OtpService otpService,
+    AdminJwtTokenService jwtTokenService,
+    IOptions<JwtOptions> jwtOptions) : ControllerBase
 {
     [HttpPost("otp")]
     [AllowAnonymous]
@@ -32,30 +35,25 @@ public class AuthController(OtpService otpService) : ControllerBase
         if (admin.Role == AdminRole.Tester)
             return BadRequest(new { error = "تسترها اجازه ورود به پنل را ندارند." });
 
-        var claims = new List<Claim>
+        var claims = AdminAuthHelper.BuildClaims(admin);
+        var token = jwtTokenService.CreateToken(claims);
+        AdminAuthHelper.SetAuthCookie(Response, Request, token, jwtOptions.Value);
+
+        return Ok(new
         {
-            new(ClaimTypes.NameIdentifier, admin.TelegramUserId.ToString()),
-            new(ClaimTypes.Name, admin.DisplayName ?? admin.PhoneNumber),
-            new(AuthConstants.RoleClaim, admin.Role.ToString())
-        };
-
-        if (admin.Id.HasValue)
-            claims.Add(new Claim(AuthConstants.AdminIdClaim, admin.Id.Value.ToString()));
-
-        if (admin.IsConfigSuperAdmin)
-            claims.Add(new Claim(AuthConstants.ConfigSuperAdminClaim, "true"));
-
-        var identity = new ClaimsIdentity(claims, AuthConstants.Scheme);
-        await HttpContext.SignInAsync(AuthConstants.Scheme, new ClaimsPrincipal(identity));
-
-        return Ok(new { admin.Id, admin.DisplayName, admin.Role, admin.IsConfigSuperAdmin });
+            token,
+            admin.Id,
+            admin.DisplayName,
+            admin.Role,
+            admin.IsConfigSuperAdmin
+        });
     }
 
     [HttpPost("logout")]
     [Authorize(Policy = AuthConstants.Scheme)]
-    public async Task<IActionResult> Logout()
+    public IActionResult Logout()
     {
-        await HttpContext.SignOutAsync(AuthConstants.Scheme);
+        AdminAuthHelper.ClearAuthCookie(Response);
         return Ok(new { message = "خروج انجام شد." });
     }
 }

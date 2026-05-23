@@ -11,14 +11,27 @@ public sealed class MediaToolsLocator
     public string? GalleryDlPath { get; private set; }
     public string? FfmpegDirectory { get; private set; }
 
+    /// <summary>Full value for yt-dlp --js-runtimes (e.g. deno:/app/tools/deno/bin/deno).</summary>
+    public string? JsRuntimesArg { get; private set; }
+
+    public string? DenoPath { get; private set; }
+
     public bool HasYtDlp => IsExecutable(YtDlpPath);
     public bool HasGalleryDl => IsExecutable(GalleryDlPath);
+    public bool HasYouTubeJsRuntime => !string.IsNullOrWhiteSpace(JsRuntimesArg);
 
-    internal void Complete(string? ytDlpPath, string? galleryDlPath, string? ffmpegDirectory)
+    internal void Complete(
+        string? ytDlpPath,
+        string? galleryDlPath,
+        string? ffmpegDirectory,
+        string? jsRuntimesArg,
+        string? denoPath)
     {
         YtDlpPath = ytDlpPath;
         GalleryDlPath = galleryDlPath;
         FfmpegDirectory = ffmpegDirectory;
+        JsRuntimesArg = jsRuntimesArg;
+        DenoPath = denoPath;
         _ready.TrySetResult();
     }
 

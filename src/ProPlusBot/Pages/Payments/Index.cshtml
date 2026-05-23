@@ -26,7 +26,10 @@
         {
             <tr>
                 <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(p.CreatedAt)</td>
-                <td>@p.TelegramUserId</td>
+                <td>
+                    <div>@(string.IsNullOrWhiteSpace(p.UserDisplayName) ? "—" : p.UserDisplayName)</div>
+                    <div dir="ltr" class="text-muted small font-monospace">@p.TelegramUserId</div>
+                </td>
                 <td dir="ltr">@(p.PhoneNumber ?? "—")</td>
                 <td>@(p.Type == PaymentType.PlanUpgrade ? "ارتقای بسته" : p.Type == PaymentType.PlanPurchase ? "خرید بسته" : "سهمیه اضافه")</td>
                 <td>@p.AmountToman.ToString("N0")</td>

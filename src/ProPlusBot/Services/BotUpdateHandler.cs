@@ -175,7 +175,8 @@ public class BotUpdateHandler(
                 "خطا در پاسخ به دکمه",
                 ex,
                 nameof(BotUpdateHandler),
-                ct);
+                ErrorLogServices.Bot,
+                ct: ct);
         }
 
         await chatStorage.EnsureUserAsync(callback.From, ct);
@@ -304,7 +305,8 @@ public class BotUpdateHandler(
                 "خطا در ارسال پیام به کاربر",
                 ex,
                 nameof(BotUpdateHandler),
-                ct);
+                ErrorLogServices.Bot,
+                ct: ct);
         }
     }
 }

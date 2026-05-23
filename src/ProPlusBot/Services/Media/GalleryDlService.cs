@@ -10,12 +10,12 @@ public class GalleryDlService(
 {
     private readonly MediaDownloadOptions _options = options.Value;
 
-    public async Task<string?> DownloadAsync(string url, string outputDirectory, CancellationToken ct = default)
+    public async Task<MediaToolDownloadResult> DownloadAsync(string url, string outputDirectory, CancellationToken ct = default)
     {
         Directory.CreateDirectory(outputDirectory);
         await tools.WaitReadyAsync(ct);
         if (!tools.HasGalleryDl)
-            return null;
+            return MediaToolDownloadResult.Failed("gallery-dl is not installed or not ready on the server.");
 
         var result = await ProcessRunner.RunAsync(
             tools.GalleryDlPath!,
@@ -27,14 +27,21 @@ public class GalleryDlService(
         if (!result.Success)
         {
             logger.LogWarning("gallery-dl failed for {Url}: {Stderr}", url, result.StdErr);
-            return null;
+            var detail = string.IsNullOrWhiteSpace(result.StdErr)
+                ? $"gallery-dl exited with code {result.ExitCode}."
+                : result.StdErr.Trim();
+            return MediaToolDownloadResult.Failed(detail);
         }
 
         if (!Directory.Exists(outputDirectory))
-            return null;
+            return MediaToolDownloadResult.Failed("gallery-dl produced no output directory.");
 
-        return Directory.EnumerateFiles(outputDirectory, "*", SearchOption.AllDirectories)
+        var file = Directory.EnumerateFiles(outputDirectory, "*", SearchOption.AllDirectories)
             .OrderByDescending(f => new FileInfo(f).Length)
             .FirstOrDefault();
+
+        return file is null
+            ? MediaToolDownloadResult.Failed("gallery-dl finished successfully but produced no file.")
+            : MediaToolDownloadResult.Ok(file);
     }
 }

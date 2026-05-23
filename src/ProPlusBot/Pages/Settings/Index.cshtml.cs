@@ -38,6 +38,20 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
     public IReadOnlyList<string> SearchGridPresetOptions { get; private set; } =
         SearchGridPresets.Allowed.Select(p => SearchGridPresets.Format(p.Columns, p.Rows)).ToList();
 
+    [BindProperty]
+    public string? YouTubeCookiesPaste { get; set; }
+
+    [BindProperty]
+    public bool ClearYouTubeCookies { get; set; }
+
+    public bool YouTubeCookiesConfigured { get; private set; }
+
+    public DateTime? YouTubeCookiesUpdatedAt { get; private set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? WarningMessage { get; set; }
+
     public string? SuccessMessage { get; set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
@@ -56,6 +70,25 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
 
         var (columns, rows) = ParseGridPreset(SearchGridPreset);
 
+        if (ClearYouTubeCookies || !string.IsNullOrWhiteSpace(YouTubeCookiesPaste))
+        {
+            var (cookieOk, cookieError, cookieWarning) = await settingsService.UpdateYouTubeCookiesAsync(
+                YouTubeCookiesPaste,
+                ClearYouTubeCookies,
+                User.GetAdminId(),
+                ct);
+
+            if (!cookieOk)
+            {
+                ErrorMessage = cookieError;
+                await LoadAsync(ct);
+                return Page();
+            }
+
+            if (!string.IsNullOrEmpty(cookieWarning))
+                WarningMessage = cookieWarning;
+        }
+
         await settingsService.UpdateAsync(
             Mode,
             UpdateMode,
@@ -69,7 +102,9 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
             User.GetAdminId(),
             ct);
 
-        SuccessMessage = "تنظیمات ذخیره شد. برای تغییر حالت دریافت پیام، برنامه را مجدداً راه‌اندازی کنید.";
+        SuccessMessage = ClearYouTubeCookies || !string.IsNullOrWhiteSpace(YouTubeCookiesPaste)
+            ? "تنظیمات و کوکی یوتیوب ذخیره شد. بدون راه‌اندازی مجدد اعمال می‌شود."
+            : "تنظیمات ذخیره شد. برای تغییر حالت دریافت پیام، برنامه را مجدداً راه‌اندازی کنید.";
         await LoadAsync(ct);
         return Page();
     }
@@ -85,6 +120,10 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
         WebhookUrl = s.WebhookUrl;
         SearchGridPreset = SearchGridPresets.Format(s.SearchGridColumns, s.SearchGridRows);
         SearchGridJpegQuality = s.SearchGridJpegQuality;
+
+        var cookieStatus = await settingsService.GetYouTubeCookiesStatusAsync(ct);
+        YouTubeCookiesConfigured = cookieStatus.Configured;
+        YouTubeCookiesUpdatedAt = cookieStatus.UpdatedAt;
     }
 
     private static (int Columns, int Rows) ParseGridPreset(string? preset)

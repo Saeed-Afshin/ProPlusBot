@@ -34,6 +34,7 @@ public class MediaDownloadBackgroundService(
                         "خطا در صف دانلود رسانه",
                         ex,
                         nameof(MediaDownloadBackgroundService),
+                        ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
                         stoppingToken);
                 }
                 catch (Exception logEx)
@@ -66,24 +67,43 @@ public class MediaDownloadProcessor(
             await tools.WaitReadyAsync(ct);
             if (!tools.CanDownload(job.Platform))
             {
+                await errorLog.LogAsync(
+                    job.ChatId,
+                    "ابزار دانلود روی سرور در دسترس نیست",
+                    $"URL: {job.SourceUrl}{Environment.NewLine}Platform: {job.Platform}",
+                    nameof(MediaDownloadProcessor),
+                    ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
+                    ct);
                 await fileSender.SendTextAsync(bot, job.ChatId,
                     "سرویس دانلود روی سرور در دسترس نیست. لطفاً به پشتیبانی اطلاع دهید.", ct);
                 return;
             }
 
-            string? filePath = job.Platform switch
+            var download = job.Platform switch
             {
-                DetectedMediaPlatform.YouTube => await ytDlp.DownloadAsync(job.SourceUrl, tempDir, ct),
+                DetectedMediaPlatform.YouTube => await ytDlp.DownloadAsync(job.SourceUrl, tempDir, job.YouTubeFormatId, ct),
                 DetectedMediaPlatform.Pinterest => await DownloadPinterestAsync(job.SourceUrl, tempDir, ct),
-                _ => null
+                _ => MediaToolDownloadResult.Failed($"Unsupported platform: {job.Platform}")
             };
 
-            if (filePath is null)
+            if (!download.Success)
             {
-                await fileSender.SendTextAsync(bot, job.ChatId,
-                    "دانلود انجام نشد. لطفاً لینک را بررسی کنید یا بعداً دوباره تلاش کنید.", ct);
+                var detail = $"URL: {job.SourceUrl}{Environment.NewLine}{Environment.NewLine}{download.ErrorDetail}";
+                await errorLog.LogAsync(
+                    job.ChatId,
+                    "دانلود رسانه انجام نشد",
+                    detail,
+                    nameof(MediaDownloadProcessor),
+                    ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
+                    ct);
+                var userMessage = download.ErrorDetail?.Contains("Requested format is not available", StringComparison.OrdinalIgnoreCase) == true
+                    ? "کیفیت انتخاب‌شده دیگر در دسترس نیست. لینک را دوباره بفرستید و کیفیت دیگری انتخاب کنید."
+                    : "دانلود انجام نشد. لطفاً لینک را بررسی کنید یا بعداً دوباره تلاش کنید.";
+                await fileSender.SendTextAsync(bot, job.ChatId, userMessage, ct);
                 return;
             }
+
+            var filePath = download.FilePath!;
 
             var fileSize = new FileInfo(filePath).Length;
             if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
@@ -97,7 +117,8 @@ public class MediaDownloadProcessor(
                 }
             }
 
-            var sent = await fileSender.SendFileAsync(bot, job.ChatId, filePath, ct);
+            var sent = await fileSender.SendFileAsync(
+                bot, job.ChatId, filePath, ErrorLogServices.FromDetectedMediaPlatform(job.Platform), ct);
             if (sent && !await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
             {
                 var platform = MediaPlatformMapper.ToKind(job.Platform);
@@ -112,6 +133,7 @@ public class MediaDownloadProcessor(
                 "خطا در پردازش دانلود رسانه",
                 ex,
                 nameof(MediaDownloadProcessor),
+                ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
                 ct);
             await fileSender.SendTextAsync(bot, job.ChatId,
                 "خطایی در هنگام دانلود رخ داد.", ct);
@@ -122,13 +144,23 @@ public class MediaDownloadProcessor(
         }
     }
 
-    private async Task<string?> DownloadPinterestAsync(string url, string tempDir, CancellationToken ct)
+    private async Task<MediaToolDownloadResult> DownloadPinterestAsync(string url, string tempDir, CancellationToken ct)
     {
-        var path = await galleryDl.DownloadAsync(url, tempDir, ct);
-        if (path is not null)
-            return path;
+        var gallery = await galleryDl.DownloadAsync(url, tempDir, ct);
+        if (gallery.Success)
+            return gallery;
 
-        return await ytDlp.DownloadAsync(url, tempDir, ct);
+        var ytDlpResult = await ytDlp.DownloadAsync(url, tempDir, youtubeFormatId: null, ct);
+        if (ytDlpResult.Success)
+            return ytDlpResult;
+
+        var parts = new[] { gallery.ErrorDetail, ytDlpResult.ErrorDetail }
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToArray();
+        var combined = parts.Length == 0
+            ? "Pinterest download failed with no tool output."
+            : string.Join(Environment.NewLine + "---" + Environment.NewLine, parts);
+        return MediaToolDownloadResult.Failed(combined);
     }
 
     private static void TryDeleteDirectory(string path)

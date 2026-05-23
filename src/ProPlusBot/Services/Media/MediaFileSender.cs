@@ -19,13 +19,21 @@ public class MediaFileSender(
     private readonly bool _useBaleApi =
         botOptions.Value.BaleApiBaseUrl.Contains("bale", StringComparison.OrdinalIgnoreCase);
 
+    public Task SendTextAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        string text,
+        CancellationToken ct) =>
+        SendTextAsync(bot, chatId, text, replyMarkup: null, ct);
+
     public async Task SendTextAsync(
         ITelegramBotClient bot,
         long chatId,
         string text,
+        InlineKeyboardMarkup? replyMarkup,
         CancellationToken ct)
     {
-        var sent = await bot.SendMessage(chatId, text, cancellationToken: ct);
+        var sent = await bot.SendMessage(chatId, text, replyMarkup: replyMarkup, cancellationToken: ct);
         await chatStorage.SaveOutgoingAsync(chatId, text, sent.MessageId, ct);
     }
 
@@ -35,7 +43,7 @@ public class MediaFileSender(
         long chatId,
         byte[] imageBytes,
         string caption,
-        InlineKeyboardMarkup replyMarkup,
+        InlineKeyboardMarkup? replyMarkup,
         CancellationToken ct)
     {
         try
@@ -59,7 +67,7 @@ public class MediaFileSender(
         long chatId,
         byte[] imageBytes,
         string caption,
-        InlineKeyboardMarkup replyMarkup,
+        InlineKeyboardMarkup? replyMarkup,
         CancellationToken ct)
     {
         await using var stream = new MemoryStream(imageBytes);
@@ -75,6 +83,7 @@ public class MediaFileSender(
         ITelegramBotClient bot,
         long chatId,
         string filePath,
+        string? service,
         CancellationToken ct)
     {
         var fileInfo = new FileInfo(filePath);
@@ -106,6 +115,7 @@ public class MediaFileSender(
                 "خطا در ارسال فایل به کاربر",
                 ex,
                 nameof(MediaFileSender),
+                service,
                 ct);
             await SendTextAsync(bot, chatId, "ارسال فایل با خطا مواجه شد.", ct);
             return false;

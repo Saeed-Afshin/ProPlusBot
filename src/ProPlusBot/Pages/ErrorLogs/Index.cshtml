@@ -11,8 +11,8 @@
         <thead>
         <tr>
             <th>تاریخ</th>
-            <th>شناسه کاربر</th>
-            <th>شماره</th>
+            <th>کاربر</th>
+            <th>سرویس</th>
             <th>عنوان خطا</th>
             <th></th>
         </tr>
@@ -22,8 +22,11 @@
         {
             <tr>
                 <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(item.CreatedAt)</td>
-                <td>@(item.TelegramUserId?.ToString() ?? "—")</td>
-                <td dir="ltr">@(item.PhoneNumber ?? "—")</td>
+                <td dir="ltr">
+                    <div>@(item.TelegramUserId?.ToString() ?? "—")</div>
+                    <div class="text-muted small">@(item.PhoneNumber ?? "—")</div>
+                </td>
+                <td>@ErrorLogServices.ToDisplayName(item.Service)</td>
                 <td>@item.Title</td>
                 <td>
                     <a asp-page="/ErrorLogs/Detail" asp-route-id="@item.Id">جزئیات</a>

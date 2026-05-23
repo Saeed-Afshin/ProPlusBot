@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -9,9 +8,9 @@ namespace ProPlusBot.Pages;
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
 public class LogoutModel : PageModel
 {
-    public async Task<IActionResult> OnPostAsync()
+    public IActionResult OnPost()
     {
-        await HttpContext.SignOutAsync(AuthConstants.Scheme);
+        AdminAuthHelper.ClearAuthCookie(Response);
         return RedirectToPage("/Login");
     }
 }

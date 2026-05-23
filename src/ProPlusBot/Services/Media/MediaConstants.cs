@@ -16,6 +16,8 @@ public static class MediaConstants
 
     public const string CallbackYouTubePrefix = "yt:";
     public const string CallbackPinterestPrefix = "pin:";
+    public const string CallbackYouTubeFormatPrefix = "ytfmt:";
+    public const string CallbackFormatPage = "p";
 
     public const string CallbackNextPage = "next";
     public const string NextPageButtonText = "صفحه بعد ▶";

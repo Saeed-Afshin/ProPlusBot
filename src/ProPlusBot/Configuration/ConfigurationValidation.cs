@@ -14,6 +14,10 @@ public static class ConfigurationValidation
         if (string.IsNullOrWhiteSpace(configuration["Bot:Token"]))
             missing.Add("Bot:Token");
 
+        var jwtSecret = configuration["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+            missing.Add("Jwt:Secret (min 32 characters)");
+
         if (missing.Count == 0)
             return;
 

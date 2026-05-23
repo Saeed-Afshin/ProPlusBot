@@ -12,6 +12,9 @@ public class BotSetting
     public int SearchGridRows { get; set; } = 3;
     public int SearchGridJpegQuality { get; set; } = 85;
     public string? WebhookUrl { get; set; }
+    /// <summary>Netscape-format YouTube cookies (set from admin panel).</summary>
+    public string? YouTubeCookiesContent { get; set; }
+    public DateTime? YouTubeCookiesUpdatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public Guid? UpdatedByAdminId { get; set; }
 }

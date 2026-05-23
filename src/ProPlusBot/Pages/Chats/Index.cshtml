@@ -1,0 +1,71 @@
+@page
+@model ProPlusBot.Pages.Chats.IndexModel
+@{
+    ViewData["Title"] = "گفتگوهای کاربران";
+}
+
+<h2 class="mb-4">گفتگوهای کاربران</h2>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-8">
+        <input asp-for="Search" class="form-control" placeholder="شناسه، نام کاربری، نام یا شماره" />
+    </div>
+    <div class="col-md-4">
+        <button type="submit" class="btn btn-secondary">جستجو</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead>
+        <tr>
+            <th>شناسه</th>
+            <th>کاربر</th>
+            <th>شماره</th>
+            <th>پیام‌ها</th>
+            <th>آخرین پیام</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var c in Model.Conversations)
+        {
+            var displayName = !string.IsNullOrWhiteSpace(c.Username)
+                ? "@" + c.Username
+                : string.Join(" ", new[] { c.FirstName, c.LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = "—";
+            }
+
+            var preview = c.LastMessagePreview;
+            if (!string.IsNullOrEmpty(preview) && preview.Length > 80)
+            {
+                preview = preview[..80] + "…";
+            }
+
+            <tr>
+                <td dir="ltr">@c.TelegramUserId</td>
+                <td>@displayName</td>
+                <td dir="ltr">@(c.PhoneNumber ?? "—")</td>
+                <td>@c.MessageCount</td>
+                <td>
+                    <div dir="ltr" class="small text-muted">@PersianDateTimeHelper.FormatTehranDisplay(c.LastMessageAt)</div>
+                    <div class="small">
+                        @(c.LastMessageDirection == MessageDirection.Incoming ? "ورودی" : "خروجی"):
+                        @(preview ?? "—")
+                    </div>
+                </td>
+                <td>
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Chats/User" asp-route-userId="@c.TelegramUserId">مشاهده گفتگو</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.Conversations.Count == 0)
+{
+    <p class="text-muted">هنوز پیامی ذخیره نشده است.</p>
+}

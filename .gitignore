@@ -8,3 +8,5 @@ appsettings.*.local.json
 # Never commit real tokens; Production secrets belong in env vars or *.local.json on the server
 **/secrets.json
 tools/
+scripts/youtube-cookies.txt
+scripts/youtube-cookies.b64.txt

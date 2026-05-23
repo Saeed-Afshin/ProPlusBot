@@ -1,0 +1,4 @@
+# Netscape HTTP Cookie File
+# This is a placeholder. Replace this entire file with your browser export.
+# Steps: see youtube-cookies-setup.md
+# Then rename or copy to youtube-cookies.txt (do not commit real cookies to git).

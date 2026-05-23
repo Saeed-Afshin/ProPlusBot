@@ -5,6 +5,8 @@ public record ErrorLogListItemDto(
     long? TelegramUserId,
     string? PhoneNumber,
     string Title,
+    string? Service,
+    string? Source,
     DateTime CreatedAt);
 
 public record ErrorLogDetailDto(
@@ -13,5 +15,6 @@ public record ErrorLogDetailDto(
     string? PhoneNumber,
     string Title,
     string Detail,
+    string? Service,
     string? Source,
     DateTime CreatedAt);

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouTube cookies setup — ProPlusBot</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #9aa8bc;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --warn-bg: #3d2e12;
+      --warn-border: #b45309;
+      --ok-bg: #132a1a;
+      --ok-border: #16a34a;
+      --code-bg: #0d1117;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: Consolas, "Cascadia Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 16px;
+    }
+    .wrap {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .subtitle { color: var(--muted); margin: 0; }
+    h2 {
+      font-size: 1.25rem;
+      margin: 2.5rem 0 1rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      color: #c5d0e0;
+    }
+    h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+    h3 {
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.75rem;
+      color: var(--accent-hover);
+    }
+    p { margin: 0.75rem 0; }
+    a { color: var(--accent); }
+    a:hover { color: var(--accent-hover); }
+    ul, ol { margin: 0.75rem 0; padding-left: 1.35rem; }
+    li { margin: 0.35rem 0; }
+    .alert {
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin: 1.25rem 0;
+      border: 1px solid;
+    }
+    .alert-warn {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+    }
+    .alert-ok {
+      background: var(--ok-bg);
+      border-color: var(--ok-border);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.15rem 1.25rem;
+      margin: 1rem 0;
+    }
+    code, kbd {
+      font-family: var(--mono);
+      font-size: 0.9em;
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    pre {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    pre code { border: none; padding: 0; background: none; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    th { background: var(--surface); color: var(--muted); font-weight: 600; }
+    td code { font-size: 0.82em; }
+    .steps { counter-reset: step; list-style: none; padding-left: 0; }
+    .steps > li {
+      counter-increment: step;
+      position: relative;
+      padding-left: 2.5rem;
+      margin: 0.75rem 0;
+    }
+    .steps > li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      width: 1.65rem;
+      height: 1.65rem;
+      line-height: 1.65rem;
+      text-align: center;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .nav-top {
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .nav-top a { margin-right: 1rem; }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="nav-top" aria-label="Formats">
+      <a href="youtube-cookies-setup.md">Markdown version</a>
+      <a href="README.md">Scripts README</a>
+    </nav>
+
+    <header>
+      <h1>YouTube cookies setup</h1>
+      <p class="subtitle">Chrome &amp; Firefox — ProPlusBot / yt-dlp</p>
+    </header>
+
+    <p>
+      ProPlusBot uses <strong>yt-dlp</strong> with a Netscape-format <code>cookies.txt</code>
+      so YouTube does not block downloads with &ldquo;Sign in to confirm you&rsquo;re not a bot.&rdquo;
+    </p>
+
+    <div class="alert alert-warn" role="note">
+      <strong>Do not commit real cookie files to git.</strong>
+      Keep them local or on the server only.
+    </div>
+
+    <h2 id="workflow">Quick workflow</h2>
+    <ol class="steps">
+      <li>Export cookies from Chrome or Firefox (see below).</li>
+      <li>Save as <code>scripts/youtube-cookies.txt</code> (overwrite the placeholder).</li>
+      <li>Optional: run <code>scripts/encode-youtube-cookies.bat</code> &rarr; <code>youtube-cookies.b64.txt</code> for env vars.</li>
+      <li>On the server: paste in <strong>admin Settings</strong> (best), or copy file to <code>tools/</code>, or use Base64 env (see below).</li>
+    </ol>
+    <p>
+      Reference:
+      <a href="https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp" target="_blank" rel="noopener">yt-dlp FAQ — passing cookies</a>
+    </p>
+
+    <h2 id="safety">Safety tips</h2>
+    <ul>
+      <li>Use a <strong>dedicated Google account</strong> for the bot, not your personal account.</li>
+      <li>Install extensions only from official store links below; avoid copycat names.</li>
+      <li>Treat <code>youtube-cookies.txt</code> like a <strong>password</strong> — anyone with it can use your YouTube session until cookies expire.</li>
+      <li>Refresh cookies every few weeks when downloads start failing again.</li>
+    </ul>
+
+    <h2 id="chrome">Google Chrome</h2>
+
+    <h3>1. Install extension</h3>
+    <div class="card">
+      <p>
+        <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">
+          Get cookies.txt LOCALLY
+        </a>
+        — open-source; exports to a file on your PC only.
+      </p>
+    </div>
+
+    <h3>2. Export</h3>
+    <ol class="steps">
+      <li>Open a new <strong>Incognito</strong> window (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>).</li>
+      <li>Go to <a href="https://www.youtube.com" target="_blank" rel="noopener">youtube.com</a> and confirm you can <strong>play a video</strong>.</li>
+      <li>Click the extension icon &rarr; export <strong>current site</strong> or YouTube cookies.</li>
+      <li>Save the file as (overwrite the placeholder):</li>
+    </ol>
+    <pre><code>D:\ProPlusBot\scripts\youtube-cookies.txt</code></pre>
+
+    <h3>3. Encode for server env (optional)</h3>
+    <pre><code>cd D:\ProPlusBot\scripts
+encode-youtube-cookies.bat</code></pre>
+    <p>
+      Output: <code>youtube-cookies.b64.txt</code> + clipboard.<br>
+      On server: <code>MediaDownload__YouTubeCookiesBase64=&lt;one line from file&gt;</code> then <strong>restart</strong> the app.
+    </p>
+
+    <h2 id="firefox">Mozilla Firefox</h2>
+
+    <h3>1. Install extension</h3>
+    <div class="card">
+      <p>
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/" target="_blank" rel="noopener">cookies.txt</a>
+        (by rahulbot)
+      </p>
+    </div>
+
+    <h3>2. Export</h3>
+    <ol class="steps">
+      <li>Open a new <strong>Private</strong> window (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>).</li>
+      <li>Open <a href="https://www.youtube.com" target="_blank" rel="noopener">youtube.com</a> and play a video.</li>
+      <li>Extension &rarr; export cookies for YouTube / current site.</li>
+      <li>Save as <code>scripts\youtube-cookies.txt</code>.</li>
+    </ol>
+
+    <h3>3. Encode (optional)</h3>
+    <p>Same as Chrome: run <code>encode-youtube-cookies.bat</code>.</p>
+
+    <h2 id="server">Server configuration</h2>
+
+    <h3>Option A — Admin panel (recommended)</h3>
+    <ol>
+      <li>Open <code>/Settings</code> in the admin panel.</li>
+      <li>Paste Netscape <code>cookies.txt</code> or one-line Base64 under <strong>کوکی یوتیوب</strong>.</li>
+      <li>Save — applies on the next download; <strong>no redeploy</strong>.</li>
+    </ol>
+
+    <h3>Option B — Cookie file on disk</h3>
+    <p>Copy <code>youtube-cookies.txt</code> to the app <code>tools</code> folder on the server:</p>
+    <table>
+      <thead>
+        <tr><th>Deploy type</th><th>Path</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Local / IIS</td><td><code>src\ProPlusBot\tools\youtube-cookies.txt</code></td></tr>
+        <tr><td>Docker</td><td>Mount volume &rarr; <code>/app/tools/youtube-cookies.txt</code></td></tr>
+      </tbody>
+    </table>
+    <div class="alert alert-ok" role="note">
+      When cookies expire: replace the file only. <strong>No app redeploy.</strong> Usually <strong>no restart.</strong>
+    </div>
+    <p>Optional config:</p>
+    <pre><code>{
+  "MediaDownload": {
+    "YouTubeCookiesFile": "youtube-cookies.txt"
+  }
+}</code></pre>
+
+    <h3>Option C — Base64 file on server</h3>
+    <div class="alert alert-warn" role="note">
+      Many hosts <strong>reject environment variables over ~1–4 KB</strong>. A 2 KB <code>.b64.txt</code> often fails in the hosting UI.
+      Upload the file instead of pasting into an env var.
+    </div>
+    <ol>
+      <li>Run <code>encode-youtube-cookies.bat</code> on your PC.</li>
+      <li>Upload <code>youtube-cookies.b64.txt</code> to <code>tools/</code> on the server.</li>
+      <li>Optional short env: <code>MediaDownload__YouTubeCookiesBase64File=youtube-cookies.b64.txt</code>
+        (auto-detected if the file is at <code>tools/youtube-cookies.b64.txt</code>).</li>
+      <li><strong>Restart</strong> the app when you replace the file.</li>
+    </ol>
+
+    <h3>Option D — Inline Base64 env var</h3>
+    <p>Only if your panel allows long values (often <strong>&le; 1024</strong> characters):</p>
+    <p><code>MediaDownload__YouTubeCookiesBase64=&lt;entire one line from .b64.txt&gt;</code></p>
+
+    <p><strong>Priority:</strong> <code>tools/youtube-cookies.txt</code> on disk wins over any Base64 source.</p>
+
+    <h2 id="verify">Verify</h2>
+    <p>After starting the bot, check logs for:</p>
+    <pre><code>YouTube cookies file: .../tools/youtube-cookies.txt</code></pre>
+    <p>If you see a warning that cookies are missing, the path or mount is wrong.</p>
+
+    <h2 id="files">Files in <code>scripts/</code></h2>
+    <table>
+      <thead>
+        <tr><th>File</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>youtube-cookies-setup.html</code></td><td>This guide (browser)</td></tr>
+        <tr><td><code>youtube-cookies-setup.md</code></td><td>This guide (Markdown)</td></tr>
+        <tr><td><code>youtube-cookies.sample.txt</code></td><td>Empty template (safe to commit)</td></tr>
+        <tr><td><code>youtube-cookies.txt</code></td><td>Your export (keep private)</td></tr>
+        <tr><td><code>encode-youtube-cookies.bat</code></td><td>Build Base64 for env vars</td></tr>
+        <tr><td><code>youtube-cookies.b64.txt</code></td><td>Generated Base64 (keep private)</td></tr>
+        <tr><td><code>pack.bat</code></td><td>Zip <code>src\ProPlusBot</code> for deployment</td></tr>
+      </tbody>
+    </table>
+
+    <footer>
+      ProPlusBot — open this file in any browser from <code>scripts/youtube-cookies-setup.html</code>
+    </footer>
+  </div>
+</body>
+</html>

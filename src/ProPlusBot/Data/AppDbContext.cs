@@ -56,6 +56,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.WebhookUrl).HasMaxLength(512);
+            e.Property(x => x.YouTubeCookiesContent).HasColumnType("text");
             e.Property(x => x.SearchGridColumns).HasDefaultValue(3);
             e.Property(x => x.SearchGridRows).HasDefaultValue(3);
             e.Property(x => x.SearchGridJpegQuality).HasDefaultValue(85);
@@ -147,6 +148,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.TelegramUserId);
             e.Property(x => x.Title).HasMaxLength(256);
             e.Property(x => x.PhoneNumber).HasMaxLength(32);
+            e.Property(x => x.Service).HasMaxLength(64);
             e.Property(x => x.Source).HasMaxLength(128);
         });
 

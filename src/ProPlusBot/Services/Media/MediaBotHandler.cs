@@ -1,4 +1,7 @@
 using System.Globalization;
+using Microsoft.Extensions.Options;
+using ProPlusBot.Configuration;
+using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
 using Telegram.Bot;
@@ -15,11 +18,12 @@ public class MediaBotHandler(
     SearchResultGridComposer gridComposer,
     MediaFileSender fileSender,
     BaleBotClientFactory clientFactory,
-    ChatStorageService chatStorage,
     QuotaService quotaService,
     UserAccessService userAccess,
     BotFeatureService botFeatures,
     BotSettingsService botSettingsService,
+    ErrorLogService errorLog,
+    IOptions<MediaDownloadOptions> mediaOptions,
     ILogger<MediaBotHandler> logger)
 {
     public async Task<bool> HandleCallbackQueryAsync(CallbackQuery callback, CancellationToken ct)
@@ -75,6 +79,27 @@ public class MediaBotHandler(
             return true;
         }
 
+        if (TryParseYouTubeFormatPageCallback(callback.Data, out var formatPage))
+        {
+            var formatSession = conversationState.GetFormatSession(userId);
+            if (formatSession is null || formatPage < 0 || formatPage >= formatSession.PageCount)
+            {
+                await fileSender.SendTextAsync(bot, userId,
+                    "لیست کیفیت منقضی شده است. لینک را دوباره بفرستید.", ct);
+                return true;
+            }
+
+            conversationState.SetFormatSession(userId, formatSession with { Page = formatPage });
+            await SendYouTubeFormatPageAsync(bot, userId, formatSession with { Page = formatPage }, ct);
+            return true;
+        }
+
+        if (TryParseYouTubeFormatSelectCallback(callback.Data, out var formatIndex))
+        {
+            await HandleYouTubeFormatSelectedAsync(bot, userId, formatIndex, ct);
+            return true;
+        }
+
         if (!TryParseSearchSelectCallback(callback.Data, out var selectPrefix, out var index))
             return false;
 
@@ -101,6 +126,90 @@ public class MediaBotHandler(
 
         await TryEnqueueDownloadAsync(bot, userId, searchSession.Results[index].Url, searchSession.Platform, source, ct);
         return true;
+    }
+
+    private async Task HandleYouTubeFormatSelectedAsync(
+        ITelegramBotClient bot,
+        long userId,
+        int formatIndex,
+        CancellationToken ct)
+    {
+        var session = conversationState.GetFormatSession(userId);
+        if (session is null || formatIndex < 0 || formatIndex >= session.Formats.Count)
+        {
+            conversationState.Clear(userId);
+            await fileSender.SendTextAsync(bot, userId,
+                "لیست کیفیت منقضی شده است. لینک را دوباره بفرستید.", ct);
+            return;
+        }
+
+        conversationState.RefreshFormatSession(userId);
+
+        if (!await userAccess.IsPrivilegedUserAsync(userId, ct))
+        {
+            var (canDownload, quotaMessage) = await quotaService.CanDownloadAsync(
+                userId,
+                MediaPlatformKind.YouTube,
+                ct);
+            if (!canDownload)
+            {
+                await fileSender.SendTextAsync(bot, userId,
+                    $"{quotaMessage}\nاز «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.",
+                    ct);
+                return;
+            }
+        }
+
+        var format = session.Formats[formatIndex];
+        if (format.ExceedsLimit(session.MaxFileBytesForPlan))
+        {
+            await fileSender.SendTextAsync(bot, userId,
+                $"حجم این کیفیت ({format.SizeDisplay}) بیشتر از حد مجاز بسته شما " +
+                $"({ByteUnits.FormatMegabytes(session.MaxFileBytesForPlan)}) است.\n" +
+                $"کیفیت کوچک‌تر انتخاب کنید یا از «{SubscriptionBotHandler.PlansButtonText}» بسته بالاتر بگیرید.",
+                ct);
+            return;
+        }
+
+        conversationState.Clear(userId);
+        await fileSender.SendTextAsync(bot, userId, $"در حال دانلود ({format.Label})…", ct);
+        await downloadQueue.EnqueueAsync(
+            new MediaDownloadJob(userId, session.Url, DetectedMediaPlatform.YouTube, session.Source, format.FormatId),
+            ct);
+    }
+
+    private async Task SendYouTubeFormatPageAsync(
+        ITelegramBotClient bot,
+        long userId,
+        YouTubeFormatSession session,
+        CancellationToken ct)
+    {
+        var text = YouTubeFormatPresenter.BuildMessage(session);
+        var markup = YouTubeFormatPresenter.BuildKeyboard(session);
+        await fileSender.SendTextAsync(bot, userId, text, markup, ct);
+    }
+
+    private static bool TryParseYouTubeFormatSelectCallback(string data, out int index)
+    {
+        index = -1;
+        if (!data.StartsWith(MediaConstants.CallbackYouTubeFormatPrefix, StringComparison.Ordinal))
+            return false;
+
+        var suffix = data[MediaConstants.CallbackYouTubeFormatPrefix.Length..];
+        if (suffix.Length == 0 || suffix.StartsWith(MediaConstants.CallbackFormatPage, StringComparison.Ordinal))
+            return false;
+
+        return int.TryParse(suffix, out index);
+    }
+
+    private static bool TryParseYouTubeFormatPageCallback(string data, out int page)
+    {
+        page = -1;
+        var prefix = MediaConstants.CallbackYouTubeFormatPrefix + MediaConstants.CallbackFormatPage;
+        if (!data.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+
+        return int.TryParse(data[prefix.Length..], out page);
     }
 
     public async Task<bool> TryHandleMessageAsync(
@@ -196,6 +305,7 @@ public class MediaBotHandler(
         if (!await CheckSearchQuotaAsync(bot, userId, platform, ct))
             return;
 
+        conversationState.ClearFormatSession(userId);
         conversationState.SetState(userId, MediaConversationState.Idle);
         await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
 
@@ -329,17 +439,26 @@ public class MediaBotHandler(
         var markup = BuildSearchKeyboard(session);
 
         var gridJpeg = await gridComposer.CreateGridJpegAsync(session.Results, session.GridLayout, ct);
-        if (gridJpeg is not null
-            && await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, markup, ct))
+        if (gridJpeg is not null)
         {
-            return;
+            // Bale often rejects sendPhoto when caption + large inline keyboard are combined.
+            if (await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, replyMarkup: null, ct))
+            {
+                if (markup.InlineKeyboard.Any())
+                    await fileSender.SendTextAsync(bot, userId, "یک شماره را انتخاب کنید:", markup, ct);
+                return;
+            }
+
+            logger.LogWarning("Search grid photo send failed for user {UserId}; trying with keyboard attached", userId);
+            if (await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, markup, ct))
+                return;
+        }
+        else
+        {
+            logger.LogWarning("Search grid image was not created for user {UserId}", userId);
         }
 
-        if (gridJpeg is null)
-            logger.LogWarning("Search grid image was not created for user {UserId}", userId);
-
-        var fallback = await bot.SendMessage(userId, caption, replyMarkup: markup, cancellationToken: ct);
-        await chatStorage.SaveOutgoingAsync(userId, caption, fallback.MessageId, ct);
+        await fileSender.SendTextAsync(bot, userId, caption, markup, ct);
     }
 
     private static InlineKeyboardMarkup BuildSearchKeyboard(MediaSearchSession session)
@@ -407,6 +526,9 @@ public class MediaBotHandler(
     {
         prefix = string.Empty;
         index = -1;
+
+        if (data.StartsWith(MediaConstants.CallbackYouTubeFormatPrefix, StringComparison.Ordinal))
+            return false;
 
         if (data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal)
             && data != MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage)
@@ -485,8 +607,61 @@ public class MediaBotHandler(
             }
         }
 
+        if (platform == DetectedMediaPlatform.YouTube)
+        {
+            await OfferYouTubeFormatSelectionAsync(bot, userId, url, source, ct);
+            return;
+        }
+
         await fileSender.SendTextAsync(bot, userId, "در حال دانلود…", ct);
         await downloadQueue.EnqueueAsync(new MediaDownloadJob(userId, url, platform, source), ct);
+    }
+
+    private async Task OfferYouTubeFormatSelectionAsync(
+        ITelegramBotClient bot,
+        long userId,
+        string url,
+        MediaDownloadSource source,
+        CancellationToken ct)
+    {
+        await fileSender.SendTextAsync(bot, userId, "در حال دریافت کیفیت‌های موجود…", ct);
+
+        var list = await ytDlp.ListYouTubeFormatsAsync(url, ct);
+        if (!list.Success || list.Formats.Count == 0)
+        {
+            var detail = string.IsNullOrWhiteSpace(list.ErrorDetail)
+                ? "No formats returned."
+                : list.ErrorDetail;
+            await errorLog.LogAsync(
+                userId,
+                "دریافت کیفیت‌های یوتیوب ناموفق بود",
+                $"URL: {url}{Environment.NewLine}{Environment.NewLine}{detail}",
+                nameof(MediaBotHandler),
+                ErrorLogServices.YouTube,
+                ct);
+            await fileSender.SendTextAsync(bot, userId,
+                "دریافت کیفیت‌ها ناموفق بود. لطفاً بعداً دوباره تلاش کنید یا لینک دیگری بفرستید.",
+                ct);
+            return;
+        }
+
+        var maxBytes = await GetEffectiveMaxFileBytesAsync(userId, ct);
+        var session = new YouTubeFormatSession(url, list.Formats, source, maxBytes);
+        conversationState.SetFormatSession(userId, session);
+        await SendYouTubeFormatPageAsync(bot, userId, session, ct);
+    }
+
+    private async Task<long> GetEffectiveMaxFileBytesAsync(long userId, CancellationToken ct)
+    {
+        if (await userAccess.IsPrivilegedUserAsync(userId, ct))
+            return long.MaxValue;
+
+        var planMax = await quotaService.GetMaxFileBytesAsync(
+            userId,
+            MediaPlatformKind.YouTube,
+            ct);
+
+        return Math.Min(planMax, mediaOptions.Value.MaxUploadBytes);
     }
 
     private async Task HandleSearchMenuRequestAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
@@ -544,6 +719,7 @@ public class MediaBotHandler(
             return;
         }
 
+        conversationState.ClearFormatSession(userId);
         conversationState.SetState(userId, MediaConversationState.AwaitingYouTubeQuery);
         await fileSender.SendTextAsync(bot, userId, "عبارت جستجو را برای یوتیوب بفرستید:", ct);
     }
@@ -556,6 +732,7 @@ public class MediaBotHandler(
             return;
         }
 
+        conversationState.ClearFormatSession(userId);
         conversationState.SetState(userId, MediaConversationState.AwaitingPinterestQuery);
         await fileSender.SendTextAsync(bot, userId, "عبارت جستجو را برای پینترست بفرستید:", ct);
     }

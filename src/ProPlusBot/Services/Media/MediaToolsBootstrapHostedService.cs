@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ public class MediaToolsBootstrapHostedService(
     IOptions<MediaDownloadOptions> options,
     IHostEnvironment hostEnvironment,
     MediaToolsLocator locator,
+    YouTubeCookiesProvider cookiesProvider,
     IHttpClientFactory httpClientFactory,
     ILogger<MediaToolsBootstrapHostedService> logger) : IHostedService
 {
@@ -21,16 +23,43 @@ public class MediaToolsBootstrapHostedService(
         var ytDlp = await ResolveYtDlpAsync(toolsDir, cancellationToken);
         var galleryDl = await ResolveGalleryDlAsync(toolsDir, cancellationToken);
         var ffmpegDir = await ResolveFfmpegAsync(toolsDir, cancellationToken);
+        var jsRuntimesArg = await ResolveJsRuntimesArgAsync(toolsDir, cancellationToken);
+        var denoPath = ExtractDenoPathFromJsRuntimesArg(jsRuntimesArg);
 
-        locator.Complete(ytDlp, galleryDl, ffmpegDir);
+        locator.Complete(ytDlp, galleryDl, ffmpegDir, jsRuntimesArg, denoPath);
+
+        if (locator.HasYtDlp)
+        {
+            var cookies = await cookiesProvider.ResolveCookiesFileAsync(cancellationToken);
+            var hasAdmin = await cookiesProvider.HasAdminCookiesAsync(cancellationToken);
+
+            if (cookies is null && !hasAdmin && !YouTubeCookiesResolver.HasYouTubeAuth(_options))
+            {
+                logger.LogWarning(
+                    "YouTube downloads will likely fail until cookies are configured. " +
+                    "Paste cookies in admin Settings, or use tools/{File} / MediaDownload env vars.",
+                    YouTubeCookiesResolver.DefaultCookiesFileName);
+            }
+            else if (cookies is not null)
+            {
+                logger.LogInformation(
+                    "YouTube cookies ready ({Source}): {CookiesFile}",
+                    hasAdmin ? "admin panel" : "configuration",
+                    cookies);
+            }
+
+            await LogYtDlpVersionAsync(ytDlp!, cancellationToken);
+            await LogYouTubeJsRuntimeAsync(cancellationToken);
+        }
 
         if (locator.HasYtDlp || locator.HasGalleryDl)
         {
             logger.LogInformation(
-                "Media tools ready — yt-dlp: {YtDlp}, gallery-dl: {GalleryDl}, ffmpeg dir: {Ffmpeg}",
+                "Media tools ready — yt-dlp: {YtDlp}, gallery-dl: {GalleryDl}, ffmpeg dir: {Ffmpeg}, deno: {Deno}",
                 ytDlp ?? "(missing)",
                 galleryDl ?? "(missing)",
-                ffmpegDir ?? "(not available)");
+                ffmpegDir ?? "(not available)",
+                denoPath ?? "(not available)");
         }
         else
         {
@@ -43,6 +72,173 @@ public class MediaToolsBootstrapHostedService(
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task LogYouTubeJsRuntimeAsync(CancellationToken ct)
+    {
+        var jsArg = locator.JsRuntimesArg;
+        if (string.IsNullOrWhiteSpace(jsArg))
+        {
+            logger.LogWarning(
+                "YouTube JS runtime not available — enable MediaDownload:AutoDownloadDeno and ensure tools/ is writable, " +
+                "or set MediaDownload:YouTubeDenoPath. See scripts/youtube-server-setup.md");
+            return;
+        }
+
+        var executable = jsArg.Contains(':', StringComparison.Ordinal)
+            ? jsArg[(jsArg.IndexOf(':') + 1)..]
+            : jsArg;
+
+        try
+        {
+            var result = await ProcessRunner.RunAsync(
+                executable,
+                ["--version"],
+                workingDirectory: null,
+                timeoutSeconds: 15,
+                ct);
+
+            if (result.Success && !string.IsNullOrWhiteSpace(result.StdOut))
+            {
+                logger.LogInformation("YouTube JS runtime ({Arg}): {Version}", jsArg, result.StdOut.Trim());
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to query Deno/JS runtime version at {Path}", executable);
+        }
+
+        logger.LogWarning(
+            "YouTube JS runtime not executable at {Path} — YouTube may return storyboard-only formats.",
+            executable);
+    }
+
+    private static string? ExtractDenoPathFromJsRuntimesArg(string? jsRuntimesArg)
+    {
+        if (string.IsNullOrWhiteSpace(jsRuntimesArg))
+            return null;
+
+        var colon = jsRuntimesArg.IndexOf(':');
+        if (colon <= 0)
+            return null;
+
+        var kind = jsRuntimesArg[..colon];
+        return kind.Equals("deno", StringComparison.OrdinalIgnoreCase)
+            ? jsRuntimesArg[(colon + 1)..]
+            : null;
+    }
+
+    private async Task<string?> ResolveJsRuntimesArgAsync(string toolsDir, CancellationToken ct)
+    {
+        var configured = _options.YouTubeJsRuntimes?.Trim();
+        if (!string.IsNullOrEmpty(configured) && configured.Contains(':', StringComparison.Ordinal))
+            return configured;
+
+        var denoPath = await ResolveDenoExecutableAsync(toolsDir, ct);
+        if (denoPath is not null)
+            return $"deno:{denoPath}";
+
+        if (!string.IsNullOrEmpty(configured))
+            return configured;
+
+        return null;
+    }
+
+    private Task<string?> ResolveDenoExecutableAsync(string toolsDir, CancellationToken ct) =>
+        ToolExecutableResolver.ResolveExecutableAsync(
+            _options.YouTubeDenoPath,
+            Path.Combine(toolsDir, "deno", "bin", DenoDownloadAssets.InstalledName),
+            DenoDownloadAssets.InstalledName,
+            _options.AutoDownloadDeno,
+            () => DownloadDenoAsync(toolsDir, ct),
+            logger,
+            ct);
+
+    private async Task<string?> DownloadDenoAsync(string toolsDir, CancellationToken ct)
+    {
+        if (!DenoDownloadAssets.TryGetAsset(out var asset) || asset is null)
+        {
+            logger.LogWarning(
+                "Automatic Deno download is not supported on {OS}/{Arch}",
+                RuntimeInformation.OSDescription,
+                RuntimeInformation.ProcessArchitecture);
+            return null;
+        }
+
+        var installPath = Path.Combine(toolsDir, "deno", "bin", DenoDownloadAssets.InstalledName);
+        var downloadsDir = Path.Combine(toolsDir, "downloads");
+        var archivePath = Path.Combine(downloadsDir, asset.Value.ArchiveFileName);
+        var extractRoot = Path.Combine(toolsDir, ".deno-extract");
+
+        try
+        {
+            if (Directory.Exists(extractRoot))
+                Directory.Delete(extractRoot, recursive: true);
+
+            logger.LogInformation("Downloading Deno for YouTube EJS from {Url}", asset.Value.DownloadUrl);
+
+            var client = httpClientFactory.CreateClient(nameof(MediaToolsBootstrapHostedService));
+            await ToolExecutableResolver.DownloadFileAsync(client, asset.Value.DownloadUrl, archivePath, ct);
+
+            Directory.CreateDirectory(extractRoot);
+            ZipFile.ExtractToDirectory(archivePath, extractRoot);
+
+            var binary = Directory
+                .EnumerateFiles(extractRoot, asset.Value.ExecutableName, SearchOption.AllDirectories)
+                .FirstOrDefault();
+
+            if (binary is null)
+            {
+                logger.LogError("deno binary not found inside {Archive}", archivePath);
+                return null;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(installPath)!);
+            File.Copy(binary, installPath, overwrite: true);
+            ToolExecutableResolver.MakeExecutable(installPath);
+
+            return await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to download Deno to {Path}", installPath);
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(extractRoot))
+                    Directory.Delete(extractRoot, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Could not remove deno extract temp folder");
+            }
+        }
+    }
+
+    private async Task LogYtDlpVersionAsync(string ytDlpPath, CancellationToken ct)
+    {
+        try
+        {
+            var result = await ProcessRunner.RunAsync(
+                ytDlpPath,
+                ["--version"],
+                workingDirectory: null,
+                timeoutSeconds: 30,
+                ct);
+
+            if (result.Success && !string.IsNullOrWhiteSpace(result.StdOut))
+                logger.LogInformation("yt-dlp version: {Version}", result.StdOut.Trim());
+            else
+                logger.LogWarning("Could not read yt-dlp version (exit {Code})", result.ExitCode);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to query yt-dlp --version");
+        }
+    }
 
     private Task<string?> ResolveYtDlpAsync(string toolsDir, CancellationToken ct) =>
         ToolExecutableResolver.ResolveExecutableAsync(

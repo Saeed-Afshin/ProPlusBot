@@ -8,12 +8,14 @@ public class ErrorLogService(AppDbContext db)
 {
     private const int MaxTitleLength = 256;
     private const int MaxSourceLength = 128;
+    private const int MaxServiceLength = 64;
 
     public async Task LogAsync(
         long? telegramUserId,
         string title,
         string detail,
         string? source = null,
+        string? service = null,
         CancellationToken ct = default)
     {
         var phone = telegramUserId is null
@@ -30,6 +32,7 @@ public class ErrorLogService(AppDbContext db)
             PhoneNumber = phone,
             Title = Truncate(title, MaxTitleLength),
             Detail = detail,
+            Service = service is null ? null : Truncate(service, MaxServiceLength),
             Source = source is null ? null : Truncate(source, MaxSourceLength),
             CreatedAt = DateTime.UtcNow
         });
@@ -42,8 +45,9 @@ public class ErrorLogService(AppDbContext db)
         string title,
         Exception ex,
         string? source = null,
+        string? service = null,
         CancellationToken ct = default) =>
-        LogAsync(telegramUserId, title, ex.ToString(), source, ct);
+        LogAsync(telegramUserId, title, ex.ToString(), source, service, ct);
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];

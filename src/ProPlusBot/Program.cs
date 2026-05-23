@@ -1,6 +1,8 @@
+using System.Text;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Auth;
 using ProPlusBot.Configuration;
@@ -16,10 +18,12 @@ builder.Services.Configure<BotOptions>(builder.Configuration.GetSection(BotOptio
 builder.Services.Configure<SuperAdminOptions>(builder.Configuration.GetSection(SuperAdminOptions.SectionName));
 builder.Services.Configure<MediaDownloadOptions>(builder.Configuration.GetSection(MediaDownloadOptions.SectionName));
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddMemoryCache();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers()
@@ -32,11 +36,52 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/LoginVerify");
 });
 
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+if (string.IsNullOrWhiteSpace(jwtOptions.Secret) || jwtOptions.Secret.Length < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Secret must be at least 32 characters. Set Jwt__Secret in environment or user secrets so admin sessions survive redeploy.");
+}
+
+builder.Services.AddSingleton<AdminJwtTokenService>();
+
 builder.Services.AddAuthentication(AuthConstants.Scheme)
-    .AddCookie(AuthConstants.Scheme, options =>
+    .AddJwtBearer(AuthConstants.Scheme, options =>
     {
-        options.LoginPath = "/Login";
-        options.AccessDeniedPath = "/Login";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Cookies.TryGetValue(AuthConstants.JwtCookieName, out var cookieToken)
+                    && !string.IsNullOrWhiteSpace(cookieToken))
+                {
+                    context.Token = cookieToken;
+                }
+
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+                    return Task.CompletedTask;
+
+                context.HandleResponse();
+                context.Response.Redirect("/Login");
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -66,6 +111,7 @@ builder.Services.AddScoped<SubscriptionAdminService>();
 builder.Services.AddScoped<TrialSettingsService>();
 builder.Services.AddScoped<ErrorLogService>();
 builder.Services.AddScoped<ErrorLogAdminService>();
+builder.Services.AddScoped<ChatLogAdminService>();
 builder.Services.AddScoped<SubscriptionBotHandler>();
 builder.Services.AddScoped<MediaBotHandler>();
 builder.Services.AddScoped<BaleApiFileSender>();
@@ -83,7 +129,8 @@ builder.Services.AddHttpClient(nameof(MediaToolsBootstrapHostedService), client 
     client.DefaultRequestHeaders.UserAgent.ParseAdd("ProPlusBot/1.0");
 });
 builder.Services.AddHostedService<MediaToolsBootstrapHostedService>();
-builder.Services.AddSingleton<YtDlpService>();
+builder.Services.AddSingleton<YouTubeCookiesProvider>();
+builder.Services.AddScoped<YtDlpService>();
 builder.Services.AddSingleton<GalleryDlService>();
 builder.Services.AddHttpClient(nameof(SearchResultGridComposer), client =>
 {
