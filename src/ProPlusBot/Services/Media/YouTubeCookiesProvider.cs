@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
@@ -10,7 +11,7 @@ namespace ProPlusBot.Services.Media;
 /// Resolves YouTube cookies for yt-dlp. Admin cookies are read from DB and written under /tmp (always writable in containers).
 /// </summary>
 public class YouTubeCookiesProvider(
-    IDbContextFactory<AppDbContext> dbFactory,
+    IServiceScopeFactory scopeFactory,
     IOptions<MediaDownloadOptions> options,
     IHostEnvironment hostEnvironment,
     ILogger<YouTubeCookiesProvider> logger)
@@ -101,7 +102,8 @@ public class YouTubeCookiesProvider(
 
     private async Task<string?> ReadAdminContentAsync(CancellationToken ct)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.BotSettings
             .AsNoTracking()
             .Where(s => s.Id == 1)

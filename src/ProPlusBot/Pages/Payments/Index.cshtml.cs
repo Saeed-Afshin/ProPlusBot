@@ -32,7 +32,10 @@ public class IndexModel(SubscriptionAdminService adminService) : PageModel
     {
         PaymentType.PlanUpgrade => "ارتقای بسته",
         PaymentType.PlanPurchase => "خرید بسته",
-        PaymentType.ExtraQuota => "سهمیه اضافه",
+        PaymentType.ExtraQuota => "سهمیه اضافه (قدیمی)",
+        PaymentType.ExtraDownloadPack => "سهمیه اضافه",
+        PaymentType.ExtraDownloadCount => "تعداد دانلود اضافه",
+        PaymentType.ExtraDownloadBytes => "حجم دانلود اضافه",
         _ => type.ToString()
     };
 }

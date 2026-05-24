@@ -5,13 +5,22 @@ using ProPlusBot.Services.Media;
 
 namespace ProPlusBot.Services;
 
-public class BotSettingsService(AppDbContext db, YouTubeCookiesProvider cookiesProvider)
+public class BotSettingsService(
+    AppDbContext db,
+    YouTubeCookiesProvider cookiesProvider,
+    Media.State.ConversationStateBackendHolder conversationStateBackendHolder)
 {
     public async Task<BotSetting> GetAsync(CancellationToken ct = default)
     {
-        var settings = await db.BotSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var settings = await db.BotSettings.AsNoTracking()
+            .Where(s => s.Id == 1)
+            .FirstOrDefaultAsync(ct);
         if (settings is not null)
-            return Normalize(settings);
+        {
+            var normalized = Normalize(settings);
+            conversationStateBackendHolder.Set(normalized.ConversationStateBackend);
+            return normalized;
+        }
 
         settings = new BotSetting
         {
@@ -24,10 +33,12 @@ public class BotSettingsService(AppDbContext db, YouTubeCookiesProvider cookiesP
             SearchGridColumns = 3,
             SearchGridRows = 3,
             SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
+            ConversationStateBackend = ConversationStateBackend.Memory,
             UpdatedAt = DateTime.UtcNow
         };
         db.BotSettings.Add(settings);
         await db.SaveChangesAsync(ct);
+        conversationStateBackendHolder.Set(settings.ConversationStateBackend);
         return settings;
     }
 
@@ -41,10 +52,11 @@ public class BotSettingsService(AppDbContext db, YouTubeCookiesProvider cookiesP
         int? searchGridColumns,
         int? searchGridRows,
         int? searchGridJpegQuality,
+        ConversationStateBackend? conversationStateBackend,
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
-        var settings = await db.BotSettings.FirstOrDefaultAsync(ct)
+        var settings = await db.BotSettings.FirstOrDefaultAsync(s => s.Id == 1, ct)
             ?? new BotSetting { Id = 1 };
 
         if (settings.Id == 0)
@@ -75,10 +87,15 @@ public class BotSettingsService(AppDbContext db, YouTubeCookiesProvider cookiesP
         if (searchGridJpegQuality.HasValue)
             settings.SearchGridJpegQuality = SearchGridPresets.NormalizeJpegQuality(searchGridJpegQuality.Value);
 
+        if (conversationStateBackend.HasValue)
+            settings.ConversationStateBackend = conversationStateBackend.Value;
+
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;
         await db.SaveChangesAsync(ct);
-        return Normalize(settings);
+        var normalized = Normalize(settings);
+        conversationStateBackendHolder.Set(normalized.ConversationStateBackend);
+        return normalized;
     }
 
     public async Task<(bool Success, string? ErrorMessage, string? WarningMessage)> UpdateYouTubeCookiesAsync(
@@ -87,7 +104,7 @@ public class BotSettingsService(AppDbContext db, YouTubeCookiesProvider cookiesP
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
-        var settings = await db.BotSettings.FirstOrDefaultAsync(ct)
+        var settings = await db.BotSettings.FirstOrDefaultAsync(s => s.Id == 1, ct)
             ?? new BotSetting { Id = 1 };
 
         if (settings.Id == 0)

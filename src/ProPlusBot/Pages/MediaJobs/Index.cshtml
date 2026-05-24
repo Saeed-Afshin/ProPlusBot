@@ -1,0 +1,70 @@
+@page
+@model ProPlusBot.Pages.MediaJobs.IndexModel
+@{
+    ViewData["Title"] = "صف دانلود";
+}
+
+<h2 class="mb-4">صف دانلود رسانه</h2>
+
+<form method="get" class="row g-2 mb-4 align-items-end">
+    <div class="col-auto">
+        <label class="form-label" for="status">وضعیت</label>
+        <select class="form-select" id="status" name="status" asp-for="StatusFilter">
+            <option value="">همه</option>
+            <option value="@MediaDownloadJobStatus.Pending">@MediaJobDisplay.ToStatusName(MediaDownloadJobStatus.Pending)</option>
+            <option value="@MediaDownloadJobStatus.Processing">@MediaJobDisplay.ToStatusName(MediaDownloadJobStatus.Processing)</option>
+            <option value="@MediaDownloadJobStatus.Completed">@MediaJobDisplay.ToStatusName(MediaDownloadJobStatus.Completed)</option>
+            <option value="@MediaDownloadJobStatus.Failed">@MediaJobDisplay.ToStatusName(MediaDownloadJobStatus.Failed)</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="userId">شناسه کاربر</label>
+        <input class="form-control" id="userId" name="userId" type="number" asp-for="UserIdFilter" dir="ltr" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">فیلتر</button>
+        <a class="btn btn-outline-secondary" asp-page="/MediaJobs/Index">پاک کردن</a>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead>
+        <tr>
+            <th>تاریخ</th>
+            <th>کاربر</th>
+            <th>پلتفرم</th>
+            <th>منبع</th>
+            <th>لینک</th>
+            <th>وضعیت</th>
+            <th>نتیجه</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var job in Model.Jobs)
+        {
+            <tr>
+                <td dir="ltr" class="text-nowrap small">@PersianDateTimeHelper.FormatTehranDisplay(job.CreatedAt)</td>
+                <td dir="ltr">
+                    <div>@job.TelegramUserId</div>
+                    <div class="text-muted small">@(job.Username is not null ? "@" + job.Username : job.PhoneNumber ?? "—")</div>
+                </td>
+                <td>@MediaJobDisplay.ToPlatformName(job.Platform)</td>
+                <td>@MediaJobDisplay.ToSourceName(job.Source)</td>
+                <td class="small text-break" dir="ltr">@job.SourceUrl</td>
+                <td>@MediaJobDisplay.ToStatusName(job.Status)</td>
+                <td class="small">@(job.ResultSummary ?? "—")</td>
+                <td>
+                    <a asp-page="/MediaJobs/Detail" asp-route-id="@job.Id">جزئیات</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.Jobs.Count == 0)
+{
+    <p class="text-muted">موردی یافت نشد.</p>
+}

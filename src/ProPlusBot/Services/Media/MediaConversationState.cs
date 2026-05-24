@@ -4,7 +4,8 @@ public enum MediaConversationState
 {
     Idle,
     AwaitingYouTubeQuery,
-    AwaitingPinterestQuery
+    AwaitingPinterestQuery,
+    AwaitingTicketMessage
 }
 
 public sealed record MediaSearchResultItem(string Title, string Url, string? ThumbnailUrl);

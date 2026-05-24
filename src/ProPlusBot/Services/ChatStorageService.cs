@@ -34,16 +34,16 @@ public class ChatStorageService(AppDbContext db, TrialSettingsService trialSetti
         return entity;
     }
 
-    public async Task SaveIncomingAsync(Message message, CancellationToken ct = default)
+    public async Task<long?> SaveIncomingAsync(Message message, CancellationToken ct = default)
     {
         if (message.From is null)
-            return;
+            return null;
 
         await EnsureUserAsync(message.From, ct);
         var text = message.Text ?? message.Caption;
         var type = message.Type.ToString().ToLowerInvariant();
 
-        db.ChatMessages.Add(new ChatMessage
+        var entity = new ChatMessage
         {
             TelegramUserId = message.From.Id,
             Direction = MessageDirection.Incoming,
@@ -52,8 +52,10 @@ public class ChatStorageService(AppDbContext db, TrialSettingsService trialSetti
             TelegramMessageId = message.MessageId,
             RawPayload = JsonSerializer.Serialize(message),
             CreatedAt = DateTime.UtcNow
-        });
+        };
+        db.ChatMessages.Add(entity);
         await db.SaveChangesAsync(ct);
+        return entity.Id;
     }
 
     public async Task SaveOutgoingAsync(

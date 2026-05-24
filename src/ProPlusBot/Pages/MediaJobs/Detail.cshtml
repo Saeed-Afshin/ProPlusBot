@@ -1,0 +1,91 @@
+@page
+@model ProPlusBot.Pages.MediaJobs.DetailModel
+@{
+    ViewData["Title"] = "جزئیات دانلود";
+    var j = Model.Job!;
+}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-page="/MediaJobs/Index">صف دانلود</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@j.Id</li>
+    </ol>
+</nav>
+
+<h2 class="mb-4">جزئیات دانلود</h2>
+
+<dl class="row">
+    <dt class="col-sm-3">شناسه</dt>
+    <dd class="col-sm-9" dir="ltr"><code>@j.Id</code></dd>
+
+    <dt class="col-sm-3">کاربر</dt>
+    <dd class="col-sm-9" dir="ltr">
+        @j.TelegramUserId
+        @if (!string.IsNullOrWhiteSpace(j.Username))
+        {
+            <span class="text-muted">(@j.Username)</span>
+        }
+        @if (!string.IsNullOrWhiteSpace(j.PhoneNumber))
+        {
+            <div class="small text-muted">@j.PhoneNumber</div>
+        }
+    </dd>
+
+    <dt class="col-sm-3">پلتفرم / منبع</dt>
+    <dd class="col-sm-9">@MediaJobDisplay.ToPlatformName(j.Platform) · @MediaJobDisplay.ToSourceName(j.Source)</dd>
+
+    <dt class="col-sm-3">لینک</dt>
+    <dd class="col-sm-9 text-break" dir="ltr">@j.SourceUrl</dd>
+
+    @if (!string.IsNullOrWhiteSpace(j.YouTubeFormatId))
+    {
+        <dt class="col-sm-3">کیفیت یوتیوب</dt>
+        <dd class="col-sm-9" dir="ltr">@j.YouTubeFormatId</dd>
+    }
+
+    <dt class="col-sm-3">وضعیت</dt>
+    <dd class="col-sm-9">@MediaJobDisplay.ToStatusName(j.Status)</dd>
+
+    <dt class="col-sm-3">خلاصه نتیجه</dt>
+    <dd class="col-sm-9">@(j.ResultSummary ?? "—")</dd>
+
+    @if (j.FileSizeBytes is not null)
+    {
+        <dt class="col-sm-3">حجم فایل</dt>
+        <dd class="col-sm-9">@ByteUnits.FormatMegabytes(j.FileSizeBytes.Value)</dd>
+    }
+
+    <dt class="col-sm-3">پیام ورودی</dt>
+    <dd class="col-sm-9">
+        @if (j.IncomingChatMessageId is not null)
+        {
+            <span dir="ltr">#@j.IncomingChatMessageId</span>
+            <a class="ms-2" asp-page="/Chats/User" asp-route-userId="@j.TelegramUserId">گفتگو</a>
+        }
+        else
+        {
+            <span>—</span>
+        }
+    </dd>
+
+    <dt class="col-sm-3">ایجاد</dt>
+    <dd class="col-sm-9" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(j.CreatedAt)</dd>
+
+    @if (j.StartedAt is not null)
+    {
+        <dt class="col-sm-3">شروع پردازش</dt>
+        <dd class="col-sm-9" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(j.StartedAt.Value)</dd>
+    }
+
+    @if (j.CompletedAt is not null)
+    {
+        <dt class="col-sm-3">پایان</dt>
+        <dd class="col-sm-9" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(j.CompletedAt.Value)</dd>
+    }
+</dl>
+
+@if (!string.IsNullOrWhiteSpace(j.ErrorDetail))
+{
+    <h3 class="h5 mt-4">جزئیات خطا</h3>
+    <pre class="bg-white border rounded p-3 small" dir="ltr" style="white-space: pre-wrap; word-break: break-word;">@j.ErrorDetail</pre>
+}

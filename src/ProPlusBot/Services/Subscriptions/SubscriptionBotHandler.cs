@@ -30,7 +30,7 @@ public class SubscriptionBotHandler(
     public const string CallbackUpgradePrefix = "sub:up:";
     public const string CallbackBuyPrefix = "sub:buy:";
     public const string CallbackPlanViewPrefix = "sub:pv:";
-    public const string CallbackExtraPrefix = "sub:ex:";
+    public const string CallbackExtraPack = "sub:ex:pack";
     public const string CallbackActivateReservedPrefix = "sub:rsv:";
 
     public async Task<bool> TryHandleMessageAsync(ITelegramBotClient bot, Message message, CancellationToken ct)
@@ -179,15 +179,11 @@ public class SubscriptionBotHandler(
             return true;
         }
 
-        if (callback.Data.StartsWith(CallbackExtraPrefix, StringComparison.Ordinal))
+        if (callback.Data == CallbackExtraPack)
         {
-            var platformStr = callback.Data[CallbackExtraPrefix.Length..];
-            if (!Enum.TryParse<MediaPlatformKind>(platformStr, out var platform))
-                return true;
-
             try
             {
-                await paymentService.SendExtraQuotaInvoiceAsync(callback.From.Id, platform, ct);
+                await paymentService.SendExtraDownloadPackInvoiceAsync(callback.From.Id, ct);
             }
             catch (Exception ex)
             {
@@ -196,7 +192,7 @@ public class SubscriptionBotHandler(
                     "خطا در ارسال فاکتور سهمیه اضافه",
                     ex,
                     nameof(SubscriptionBotHandler),
-                    ErrorLogServices.FromMediaPlatformKind(platform),
+                    ErrorLogServices.Subscription,
                     ct: ct);
                 await fileSender.SendTextAsync(bot, callback.From.Id, ex.Message, ct);
             }
@@ -213,7 +209,7 @@ public class SubscriptionBotHandler(
         || data.StartsWith(CallbackUpgradePrefix, StringComparison.Ordinal)
         || data.StartsWith(CallbackBuyPrefix, StringComparison.Ordinal)
         || data.StartsWith(CallbackActivateReservedPrefix, StringComparison.Ordinal)
-        || data.StartsWith(CallbackExtraPrefix, StringComparison.Ordinal);
+        || data == CallbackExtraPack;
 
     private static string PlanViewCallback(SubscriptionPlan plan, PlanOfferMode mode) =>
         $"{CallbackPlanViewPrefix}{plan}:{mode.ToString().ToLowerInvariant()}";
@@ -281,16 +277,32 @@ public class SubscriptionBotHandler(
             $"شروع دوره سهمیه: {PersianDateTimeHelper.ToShamsiDateString(summary.QuotaPeriodStartAt)} {PersianDateTimeHelper.ToTimeString(summary.QuotaPeriodStartAt)}");
         lines.Add(string.Empty);
 
-        foreach (var q in summary.Quotas)
+        var q = summary.SharedQuota;
+        lines.Add("سهمیه ماهانه (یوتیوب + پینترست):");
+        lines.Add($"  دانلود: {q.MonthlyDownloadCountUsed}/{q.MonthlyDownloadCountLimit}، {ByteUnits.FormatVolume(q.MonthlyBytesUsed)}/{ByteUnits.FormatVolume(q.MonthlyBytesLimit)}");
+        lines.Add($"  جستجو: {q.MonthlySearchUsed}/{q.MonthlySearchLimit}");
+        if (q.ExtraDownloadCountBonus > 0 || q.ExtraDownloadBytesBonus > 0 || q.ExtraSearchCountBonus > 0)
         {
-            lines.Add($"▫️ {MediaPlatformMapper.ToDisplayName(q.Platform)}");
-            lines.Add($"  دانلود ماهانه: {q.MonthlyDownloadCountUsed}/{q.MonthlyDownloadCountLimit}، {ByteUnits.FormatMegabytes(q.MonthlyBytesUsed)}/{ByteUnits.FormatMegabytes(q.MonthlyBytesLimit)}");
-            lines.Add($"  جستجو ماهانه: {q.MonthlySearchUsed}/{q.MonthlySearchLimit}");
-            lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatMegabytes(q.MaxFileBytesLimit)}");
-            if (q.ExtraCountRemaining > 0 || q.ExtraBytesRemaining > 0)
-                lines.Add($"  سهمیه اضافه: {q.ExtraCountRemaining} دانلود، {ByteUnits.FormatMegabytes(q.ExtraBytesRemaining)}");
-            lines.Add(string.Empty);
+            lines.Add(
+                $"  سهمیه اضافه: +{q.ExtraDownloadCountBonus} دانلود، +{ByteUnits.FormatVolume(q.ExtraDownloadBytesBonus)}، +{q.ExtraSearchCountBonus} جستجو");
         }
+
+        if (summary.PlatformMaxFiles.Count > 0)
+        {
+            var maxFile = summary.PlatformMaxFiles[0].MaxFileBytesLimit;
+            if (summary.PlatformMaxFiles.All(p => p.MaxFileBytesLimit == maxFile))
+                lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatVolume(maxFile)}");
+            else
+            {
+                foreach (var pf in summary.PlatformMaxFiles)
+                {
+                    lines.Add($"▫️ {MediaPlatformMapper.ToDisplayName(pf.Platform)}");
+                    lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatVolume(pf.MaxFileBytesLimit)}");
+                }
+            }
+        }
+
+        lines.Add(string.Empty);
 
         if (summary.ReservedPlans.Count > 0)
         {
@@ -315,7 +327,11 @@ public class SubscriptionBotHandler(
                 {
                     PaymentType.PlanUpgrade => "ارتقا",
                     PaymentType.PlanPurchase => "خرید بسته",
-                    _ => "سهمیه اضافه"
+                    PaymentType.ExtraDownloadPack => "سهمیه اضافه",
+                    PaymentType.ExtraDownloadCount => "تعداد دانلود اضافه",
+                    PaymentType.ExtraDownloadBytes => "حجم دانلود اضافه",
+                    PaymentType.ExtraQuota => "سهمیه اضافه",
+                    _ => p.Type.ToString()
                 };
                 var status = p.Status switch
                 {
@@ -482,18 +498,23 @@ public class SubscriptionBotHandler(
 
     private async Task SendExtraQuotaOptionsAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
     {
-        var rows = Enum.GetValues<MediaPlatformKind>()
-            .Select(p => new[]
-            {
-                InlineKeyboardButton.WithCallbackData(
-                    MediaPlatformMapper.ToDisplayName(p),
-                    $"{CallbackExtraPrefix}{p}")
-            })
-            .ToList();
+        var plan = await quotaService.GetEffectivePlanAsync(userId, ct);
+        var planRow = await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
+
+        if (!PlanExtraPackHelper.IsPackAvailable(planRow))
+        {
+            await bot.SendMessage(userId, "خرید سهمیه اضافه برای بسته شما فعال نیست.", cancellationToken: ct);
+            return;
+        }
+
+        var rows = new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("💳 خرید سهمیه اضافه", CallbackExtraPack) }
+        };
 
         await bot.SendMessage(
             userId,
-            "سهمیه اضافه برای کدام پلتفرم؟",
+            PlanExtraPackHelper.BuildOfferText(planRow),
             replyMarkup: new InlineKeyboardMarkup(rows),
             cancellationToken: ct);
     }

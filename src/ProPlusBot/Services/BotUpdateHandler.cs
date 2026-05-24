@@ -1,10 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using ProPlusBot.Configuration;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Services.Media;
 using ProPlusBot.Services.Subscriptions;
+using ProPlusBot.Services.Tickets;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -21,14 +20,12 @@ public class BotUpdateHandler(
     MediaBotHandler mediaHandler,
     BotFeatureService botFeatures,
     SubscriptionBotHandler subscriptionHandler,
+    TicketBotHandler ticketHandler,
     BalePaymentService paymentService,
     ErrorLogService errorLog,
     AppDbContext db,
-    IOptions<BotOptions> botOptions,
     ILogger<BotUpdateHandler> logger)
 {
-    private readonly BotOptions _botOptions = botOptions.Value;
-
     public async Task HandleUpdateAsync(Update update, CancellationToken ct = default)
     {
         if (update.PreCheckoutQuery is not null)
@@ -65,7 +62,7 @@ public class BotUpdateHandler(
         var bot = clientFactory.CreateClient();
 
         await chatStorage.EnsureUserAsync(message.From, ct);
-        await chatStorage.SaveIncomingAsync(message, ct);
+        var incomingChatMessageId = await chatStorage.SaveIncomingAsync(message, ct);
 
         var settings = await settingsService.GetAsync(ct);
         if (!settings.IsActive)
@@ -113,8 +110,7 @@ public class BotUpdateHandler(
         {
             if (await HasSharedPhoneAsync(userId, ct))
             {
-                await SendAndStoreAsync(bot, userId,
-                    $"لطفاً در کانال {_botOptions.RequiredChannelUsername} عضو شوید و «{UserAccessService.RestartButtonText}» را بزنید.", ct);
+                await PromptChannelJoinAsync(bot, userId, ct);
             }
             else
             {
@@ -140,6 +136,12 @@ public class BotUpdateHandler(
         if (await subscriptionHandler.TryHandleMessageAsync(bot, message, ct))
             return;
 
+        if (await ticketHandler.TryHandleSupportButtonAsync(bot, message, SendTicketAsync, ct))
+            return;
+
+        if (await ticketHandler.TryHandleMessageAsync(bot, message, incomingChatMessageId, SendTicketAsync, ct))
+            return;
+
         if (!privileged && !await userAccess.HasSubscriptionAccessAsync(userId, ct))
         {
             await SendAndStoreAsync(bot, userId,
@@ -148,7 +150,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        if (await mediaHandler.TryHandleMessageAsync(bot, message, ct))
+        if (await mediaHandler.TryHandleMessageAsync(bot, message, incomingChatMessageId, ct))
             return;
 
         conversationState.Clear(userId);
@@ -162,6 +164,8 @@ public class BotUpdateHandler(
 
         var userId = callback.From.Id;
         var bot = clientFactory.CreateClient();
+
+        await chatStorage.EnsureUserAsync(callback.From, ct);
 
         try
         {
@@ -178,8 +182,6 @@ public class BotUpdateHandler(
                 ErrorLogServices.Bot,
                 ct: ct);
         }
-
-        await chatStorage.EnsureUserAsync(callback.From, ct);
 
         var settings = await settingsService.GetAsync(ct);
         if (!settings.IsActive || !await userAccess.CanReceiveBotResponseAsync(userId, ct))
@@ -233,9 +235,7 @@ public class BotUpdateHandler(
         var joined = await userAccess.CheckChannelMembershipAsync(bot, userId, ct);
         if (!joined)
         {
-            await SendAndStoreAsync(bot, userId,
-                $"هنوز در کانال عضو نشده‌اید. لطفاً در {_botOptions.RequiredChannelUsername} عضو شوید و «{UserAccessService.RestartButtonText}» را بزنید.",
-                ct);
+            await PromptChannelJoinAsync(bot, userId, ct);
             return;
         }
 
@@ -260,6 +260,20 @@ public class BotUpdateHandler(
             cancellationToken: ct);
     }
 
+    private async Task PromptChannelJoinAsync(
+        ITelegramBotClient bot,
+        long userId,
+        CancellationToken ct)
+    {
+        await SendAndStoreAsync(
+            bot,
+            userId,
+            userAccess.ChannelJoinPromptMessage(),
+            ct,
+            replyMarkup: UserAccessService.RestartKeyboard(),
+            useAutoMarkup: false);
+    }
+
     private async Task<bool> HasSharedPhoneAsync(long userId, CancellationToken ct) =>
         await db.BotUsers.AsNoTracking()
             .AnyAsync(u => u.TelegramUserId == userId && u.HasSharedPhone, ct);
@@ -280,6 +294,9 @@ public class BotUpdateHandler(
 
         return await botFeatures.BuildMainMenuKeyboardAsync(userId, ct);
     }
+
+    private Task SendTicketAsync(ITelegramBotClient bot, long chatId, string text, CancellationToken ct) =>
+        SendAndStoreAsync(bot, chatId, text, ct);
 
     private async Task SendAndStoreAsync(
         ITelegramBotClient bot,

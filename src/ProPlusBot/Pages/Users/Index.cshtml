@@ -1,14 +1,43 @@
 @page
 @model ProPlusBot.Pages.Users.IndexModel
+@using ProPlusBot.Pages.Messages
 @{
     ViewData["Title"] = "کاربران";
 }
 
 <h2 class="mb-4">کاربران ربات</h2>
 
-<div class="mb-3">
+<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
     <a class="btn btn-primary" asp-page="/Users/Manage">مدیریت دستی کاربر</a>
+    <div class="dropdown position-relative" id="groupActionsDropdown">
+        <button type="button"
+                class="btn btn-outline-primary dropdown-toggle"
+                id="groupActionsToggle"
+                aria-expanded="false"
+                aria-haspopup="true">
+            عملیات گروهی
+        </button>
+        <ul class="dropdown-menu shadow" id="groupActionsMenu">
+            <li>
+                <button type="button" class="dropdown-item" id="btnMessageSelected">پیام به انتخاب‌شده‌ها</button>
+            </li>
+            <li>
+                <button type="button" class="dropdown-item" id="btnSyncSelected">همگام‌سازی انتخاب‌شده‌ها</button>
+            </li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+                <a class="dropdown-item" href="@Url.Page("/Messages/Index")" id="btnMessagesPage">پیام / همگام‌سازی</a>
+            </li>
+            <li>
+                <a class="dropdown-item" href="@Url.Page("/Users/BulkQuota")" id="btnBulkQuotaPage">سهمیه / تاریخ گروهی</a>
+            </li>
+        </ul>
+    </div>
 </div>
+
+<form method="post" asp-page-handler="SyncSelected" id="syncSelectedForm" class="d-none">
+    <input type="hidden" name="selectedIds" id="syncSelectedIdsInput" />
+</form>
 
 @if (Model.SuccessMessage is not null) { <div class="alert alert-success">@Model.SuccessMessage</div> }
 @if (Model.ErrorMessage is not null) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
@@ -26,49 +55,176 @@
     <table class="table table-bordered table-striped align-middle">
         <thead>
         <tr>
-            <th>شناسه</th>
-            <th>نام کاربری</th>
-            <th>شماره</th>
-            <th>بسته</th>
-            <th>تاریخ انقضا (شمسی)</th>
-            <th>ساعت انقضا</th>
-            <th>وضعیت</th>
-            <th>عملیات</th>
+            <th class="text-center" style="width:2.5rem;"><input type="checkbox" id="pickAll" title="انتخاب همه" /></th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
+            <th>بسته / وضعیت</th>
+            <th>تاریخ انقضا</th>
+            <th class="text-center" style="width:3rem;" title="مدیریت">⚙</th>
+            <th class="text-center" style="width:3rem;" title="گفتگو">💬</th>
+            <th class="text-center" style="width:3rem;" title="مسدود / رفع مسدودیت">🛡</th>
         </tr>
         </thead>
         <tbody>
         @foreach (var u in Model.Users)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(u.Username)
+                ? "—"
+                : (u.Username.StartsWith('@') ? u.Username : "@" + u.Username);
+            var displayName = string.IsNullOrWhiteSpace(u.DisplayName) ? "—" : u.DisplayName;
             <tr>
-                <td>@u.TelegramUserId</td>
-                <td>@(u.Username ?? "—")</td>
-                <td>@(u.PhoneNumber ?? "—")</td>
-                <td>@MediaPlatformMapper.ToDisplayName(u.Plan)</td>
-                <td dir="ltr">@(u.PlanExpiresAt is null ? "—" : PersianDateTimeHelper.ToShamsiDateString(u.PlanExpiresAt))</td>
-                <td dir="ltr" class="font-monospace">@(u.PlanExpiresAt is null ? "—" : PersianDateTimeHelper.ToTimeString(u.PlanExpiresAt))</td>
-                <td>@(u.IsBanned ? "مسدود" : "فعال")</td>
-                <td style="min-width: 8rem;">
-                    <div class="d-flex flex-column gap-1">
-                        <a class="btn btn-sm btn-outline-primary" asp-page="/Users/Manage" asp-route-userId="@u.TelegramUserId">مدیریت</a>
-                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Chats/User" asp-route-userId="@u.TelegramUserId">گفتگو</a>
-                        @if (u.IsBanned)
-                        {
-                            <form method="post" asp-page-handler="Unban" class="m-0">
-                                <input type="hidden" name="userId" value="@u.TelegramUserId" />
-                                <button type="submit" class="btn btn-sm btn-success w-100">رفع مسدودیت</button>
-                            </form>
-                        }
-                        else
-                        {
-                            <form method="post" asp-page-handler="Ban" class="m-0">
-                                <input type="hidden" name="userId" value="@u.TelegramUserId" />
-                                <button type="submit" class="btn btn-sm btn-danger w-100">مسدود</button>
-                            </form>
-                        }
-                    </div>
+                <td class="text-center"><input type="checkbox" class="user-pick" value="@u.TelegramUserId" /></td>
+                <td dir="ltr">
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@u.TelegramUserId</div>
+                </td>
+                <td>
+                    <div dir="ltr">@(u.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
+                </td>
+                <td>
+                    <div>@MediaPlatformMapper.ToDisplayName(u.Plan)</div>
+                    <span class="badge @(u.IsBanned ? "text-bg-danger" : "text-bg-success")">
+                        @(u.IsBanned ? "مسدود" : "فعال")
+                    </span>
+                </td>
+                <td dir="ltr" class="font-monospace">
+                    @if (u.PlanExpiresAt is null)
+                    {
+                        <span>—</span>
+                    }
+                    else
+                    {
+                        <div>@PersianDateTimeHelper.ToShamsiDateString(u.PlanExpiresAt)</div>
+                        <div class="text-muted small">@PersianDateTimeHelper.ToTimeString(u.PlanExpiresAt)</div>
+                    }
+                </td>
+                <td class="text-center p-1">
+                    <a class="btn btn-sm btn-outline-primary"
+                       asp-page="/Users/Manage"
+                       asp-route-userId="@u.TelegramUserId"
+                       title="مدیریت"
+                       aria-label="مدیریت">⚙</a>
+                </td>
+                <td class="text-center p-1">
+                    <a class="btn btn-sm btn-outline-secondary"
+                       asp-page="/Chats/User"
+                       asp-route-userId="@u.TelegramUserId"
+                       title="گفتگو"
+                       aria-label="گفتگو">💬</a>
+                </td>
+                <td class="text-center p-1">
+                    @if (u.IsBanned)
+                    {
+                        <form method="post" asp-page-handler="Unban" class="d-inline">
+                            <input type="hidden" name="userId" value="@u.TelegramUserId" />
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-success"
+                                    title="رفع مسدودیت"
+                                    aria-label="رفع مسدودیت">✓</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="Ban" class="d-inline">
+                            <input type="hidden" name="userId" value="@u.TelegramUserId" />
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-danger"
+                                    title="مسدود کردن"
+                                    aria-label="مسدود کردن">🚫</button>
+                        </form>
+                    }
                 </td>
             </tr>
         }
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+<script>
+(function () {
+  const messagesBaseUrl = '@Url.Page("/Messages/Index")';
+  const bulkQuotaBaseUrl = '@Url.Page("/Users/BulkQuota")';
+  const targetSelected = '@AdminUserTargetKind.Selected';
+
+  const groupToggle = document.getElementById('groupActionsToggle');
+  const groupMenu = document.getElementById('groupActionsMenu');
+  const groupDropdown = document.getElementById('groupActionsDropdown');
+  if (groupToggle && groupMenu) {
+    groupToggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const open = groupMenu.classList.toggle('show');
+      groupToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function () {
+      groupMenu.classList.remove('show');
+      groupToggle.setAttribute('aria-expanded', 'false');
+    });
+    groupDropdown?.addEventListener('click', function (e) { e.stopPropagation(); });
+  }
+
+  const pickAll = document.getElementById('pickAll');
+  if (pickAll) {
+    pickAll.addEventListener('change', function () {
+      document.querySelectorAll('.user-pick').forEach(function (cb) { cb.checked = pickAll.checked; });
+    });
+  }
+
+  function selectedIds() {
+    return Array.from(document.querySelectorAll('.user-pick:checked')).map(function (cb) { return cb.value; }).join(',');
+  }
+
+  function openMessagesWithSelection(ids) {
+    const params = new URLSearchParams();
+    params.set('SelectedUserIds', ids);
+    params.set('Target', targetSelected);
+    window.location = messagesBaseUrl + '?' + params.toString();
+  }
+
+  function goMessages() {
+    const ids = selectedIds();
+    if (!ids) { alert('حداقل یک کاربر را انتخاب کنید.'); return; }
+    closeGroupMenu();
+    openMessagesWithSelection(ids);
+  }
+
+  function openBulkQuotaWithSelection(ids) {
+    const params = new URLSearchParams();
+    params.set('SelectedUserIds', ids);
+    params.set('Target', targetSelected);
+    window.location = bulkQuotaBaseUrl + '?' + params.toString();
+  }
+
+  function closeGroupMenu() {
+    groupMenu?.classList.remove('show');
+    groupToggle?.setAttribute('aria-expanded', 'false');
+  }
+
+  document.getElementById('btnMessagesPage')?.addEventListener('click', function (e) {
+    const ids = selectedIds();
+    if (!ids) return;
+    e.preventDefault();
+    closeGroupMenu();
+    openMessagesWithSelection(ids);
+  });
+  document.getElementById('btnBulkQuotaPage')?.addEventListener('click', function (e) {
+    const ids = selectedIds();
+    if (!ids) return;
+    e.preventDefault();
+    closeGroupMenu();
+    openBulkQuotaWithSelection(ids);
+  });
+  function goSync() {
+    const ids = selectedIds();
+    if (!ids) { alert('حداقل یک کاربر را انتخاب کنید.'); return; }
+    if (!confirm('اطلاعات کاربران انتخاب‌شده از بله به‌روزرسانی می‌شود. ادامه؟')) return;
+    closeGroupMenu();
+    document.getElementById('syncSelectedIdsInput').value = ids;
+    document.getElementById('syncSelectedForm').submit();
+  }
+  document.getElementById('btnMessageSelected')?.addEventListener('click', goMessages);
+  document.getElementById('btnSyncSelected')?.addEventListener('click', goSync);
+})();
+</script>
+}

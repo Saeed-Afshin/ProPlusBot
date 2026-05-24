@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProPlusBot.Auth;
+using ProPlusBot.Services.Messaging;
 using ProPlusBot.Services.Subscriptions;
 
 namespace ProPlusBot.Pages.Users;
@@ -9,7 +10,8 @@ namespace ProPlusBot.Pages.Users;
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
 public class IndexModel(
     SubscriptionAdminService adminService,
-    SubscriptionService subscriptionService) : PageModel
+    SubscriptionService subscriptionService,
+    BaleUserProfileSyncService profileSync) : PageModel
 {
     public List<Models.BotUserAdminDto> Users { get; set; } = [];
 
@@ -46,6 +48,41 @@ public class IndexModel(
         await subscriptionService.SetBanAsync(userId, false, ct);
         SuccessMessage = "مسدودیت کاربر برداشته شد.";
         return await ReloadAsync(ct);
+    }
+
+    public async Task<IActionResult> OnPostSyncSelectedAsync(string selectedIds, CancellationToken ct)
+    {
+        if (!User.CanAccessAdminPanel())
+            return RedirectToPage("/Login");
+
+        var ids = ParseSelectedIds(selectedIds);
+        if (ids.Count == 0)
+        {
+            ErrorMessage = "هیچ کاربری انتخاب نشده است.";
+            return await ReloadAsync(ct);
+        }
+
+        var result = await profileSync.SyncUsersAsync(ids, ct);
+        SuccessMessage =
+            $"همگام‌سازی: {result.Updated} به‌روز، {result.Failed} ناموفق.";
+        if (result.Errors.Count > 0)
+            ErrorMessage = string.Join(" ", result.Errors);
+
+        return await ReloadAsync(ct);
+    }
+
+    private static IReadOnlyList<long> ParseSelectedIds(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return [];
+
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => long.TryParse(s, out var id) ? id : (long?)null)
+            .Where(id => id is > 0)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
     }
 
     private async Task<IActionResult> ReloadAsync(CancellationToken ct)

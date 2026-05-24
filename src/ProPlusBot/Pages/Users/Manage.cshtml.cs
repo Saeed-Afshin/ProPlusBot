@@ -6,6 +6,7 @@ using ProPlusBot.Auth;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
+using ProPlusBot.Services.Messaging;
 using ProPlusBot.Services.Subscriptions;
 
 namespace ProPlusBot.Pages.Users;
@@ -15,6 +16,7 @@ public class ManageModel(
     SubscriptionService subscriptionService,
     QuotaService quotaService,
     UserPlanLimitService userPlanLimitService,
+    BaleUserProfileSyncService profileSync,
     AppDbContext db) : PageModel
 {
     [BindProperty(SupportsGet = true)]
@@ -34,9 +36,6 @@ public class ManageModel(
 
     [BindProperty]
     public int ExtendDays { get; set; } = 30;
-
-    [BindProperty]
-    public MediaPlatformKind QuotaPlatform { get; set; }
 
     [BindProperty]
     public int QuotaCountDelta { get; set; }
@@ -75,7 +74,7 @@ public class ManageModel(
                 EditExpiresTime);
 
             await subscriptionService.ApplyAdminPlanChangeAsync(EditUserId, EditPlan, expiresAt, ct);
-            SuccessMessage = "بسته کاربر به‌روزرسانی شد.";
+            SuccessMessage = "بسته کاربر به‌روزرسانی شد و به کاربر اطلاع داده شد.";
             await LoadUserAsync(EditUserId, ct);
         }
         catch (Exception ex)
@@ -94,7 +93,7 @@ public class ManageModel(
         try
         {
             await subscriptionService.ExtendPlanAsync(EditUserId, ExtendDays, ct);
-            SuccessMessage = $"اشتراک {ExtendDays} روز تمدید شد.";
+            SuccessMessage = $"اشتراک {ExtendDays} روز تمدید شد و به کاربر اطلاع داده شد.";
             await LoadUserAsync(EditUserId, ct);
         }
         catch (Exception ex)
@@ -105,30 +104,46 @@ public class ManageModel(
         return Page();
     }
 
+    public async Task<IActionResult> OnPostSyncFromBaleAsync(CancellationToken ct)
+    {
+        if (!User.CanAccessAdminPanel())
+            return RedirectToPage("/Login");
+
+        if (EditUserId <= 0)
+        {
+            ErrorMessage = "شناسه کاربر نامعتبر است.";
+            return Page();
+        }
+
+        var result = await profileSync.SyncUsersAsync([EditUserId], ct);
+        if (result.Updated > 0)
+            SuccessMessage = "اطلاعات کاربر از بله به‌روزرسانی شد.";
+        else
+            ErrorMessage = result.Errors.FirstOrDefault() ?? "همگام‌سازی انجام نشد.";
+
+        await LoadUserAsync(EditUserId, ct);
+        return Page();
+    }
+
     public async Task<IActionResult> OnPostAdjustQuotaAsync(CancellationToken ct)
     {
         if (!User.CanAccessAdminPanel())
             return RedirectToPage("/Login");
 
         var bytesDelta = ByteUnits.FromMegabytes(QuotaMegabytesDelta);
-        await subscriptionService.AdjustQuotaAsync(EditUserId, QuotaPlatform, QuotaCountDelta, bytesDelta, ct);
+        await subscriptionService.AdjustQuotaAsync(EditUserId, QuotaCountDelta, bytesDelta, ct);
         SuccessMessage = "سهمیه اضافه کاربر تنظیم شد.";
         await LoadUserAsync(EditUserId, ct);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSaveUserLimitRowAsync(
-        MediaPlatformKind platform,
-        UsagePeriod period,
-        QuotaLimitKind limitKind,
-        decimal value,
-        CancellationToken ct)
+    public async Task<IActionResult> OnPostSaveUserMaxFileAsync(decimal megabytes, CancellationToken ct)
     {
         if (!User.CanAccessAdminPanel())
             return RedirectToPage("/Login");
 
-        await userPlanLimitService.SaveUserLimitRowAsync(EditUserId, platform, period, limitKind, value, ct);
-        SuccessMessage = "محدودیت کاربر ذخیره شد.";
+        await userPlanLimitService.SaveUserMaxFileAsync(EditUserId, megabytes, ct);
+        SuccessMessage = "حداکثر حجم فایل ذخیره شد.";
         await LoadUserAsync(EditUserId, ct);
         return Page();
     }

@@ -15,6 +15,7 @@ public record BotSettingsDto(
     int SearchGridColumns,
     int SearchGridRows,
     int SearchGridJpegQuality,
+    ConversationStateBackend ConversationStateBackend,
     string? WebhookUrl,
     DateTime UpdatedAt);
 
@@ -27,6 +28,7 @@ public record UpdateBotSettingsRequest(
     int? SearchGridColumns,
     int? SearchGridRows,
     int? SearchGridJpegQuality,
+    ConversationStateBackend? ConversationStateBackend,
     string? WebhookUrl);
 
 public record ChatMessageDto(long Id, long TelegramUserId, MessageDirection Direction, string? Text, string MessageType, DateTime CreatedAt);

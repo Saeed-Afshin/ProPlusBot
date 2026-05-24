@@ -3,12 +3,14 @@ using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
+using ProPlusBot.Services.Messaging;
 
 namespace ProPlusBot.Services.Subscriptions;
 
 public class SubscriptionService(
     AppDbContext db,
     PlanLifecycleService planLifecycle,
+    AdminMessagingService adminMessaging,
     IOptions<PaymentOptions> paymentOptions)
 {
     private readonly PaymentOptions _paymentOptions = paymentOptions.Value;
@@ -115,33 +117,40 @@ public class SubscriptionService(
         return payment;
     }
 
-    public async Task<PaymentRecord> CreateExtraQuotaPaymentAsync(
+    public async Task<PaymentRecord> CreateExtraDownloadPackPaymentAsync(
         long telegramUserId,
-        MediaPlatformKind platform,
         CancellationToken ct = default)
     {
         await ExpireStalePendingPaymentsAsync(telegramUserId, ct);
+        var plan = await GetUserEffectivePlanForExtraAsync(telegramUserId, ct);
+        var planRow = await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
 
-        var pack = await db.ExtraQuotaPackSettings.AsNoTracking().FirstAsync(ct);
-        if (pack.PriceToman <= 0)
-            throw new InvalidOperationException("قیمت سهمیه اضافه تنظیم نشده است.");
+        if (!PlanExtraPackHelper.IsPackAvailable(planRow))
+            throw new InvalidOperationException("خرید سهمیه اضافه برای بسته شما فعال نیست.");
 
         var payment = new PaymentRecord
         {
             Id = Guid.NewGuid(),
             TelegramUserId = telegramUserId,
-            Type = PaymentType.ExtraQuota,
+            Type = PaymentType.ExtraDownloadPack,
             Status = PaymentStatus.Pending,
             Currency = _paymentOptions.Currency,
-            Payload = $"extra:{platform}",
-            Platform = platform,
+            Payload = "extra_pack",
             CreatedAt = DateTime.UtcNow
         };
-        SetPaymentAmounts(payment, pack.PriceToman);
-
+        SetPaymentAmounts(payment, PlanExtraPackHelper.GetPackPriceToman(planRow));
         db.PaymentRecords.Add(payment);
         await db.SaveChangesAsync(ct);
         return payment;
+    }
+
+    private async Task<SubscriptionPlan> GetUserEffectivePlanForExtraAsync(long telegramUserId, CancellationToken ct)
+    {
+        var user = await db.BotUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.TelegramUserId == telegramUserId, ct)
+            ?? throw new InvalidOperationException("کاربر یافت نشد.");
+
+        return PlanLifecycleService.IsPaidPlanActive(user) ? user.Plan : SubscriptionPlan.Free;
     }
 
     public async Task ExpireStalePendingPaymentsAsync(long? telegramUserId = null, CancellationToken ct = default)
@@ -194,25 +203,12 @@ public class SubscriptionService(
             return result;
         }
 
-        if (payment.Type == PaymentType.ExtraQuota && payment.Platform is not null)
+        if (payment.Type is PaymentType.ExtraQuota
+            or PaymentType.ExtraDownloadCount
+            or PaymentType.ExtraDownloadBytes
+            or PaymentType.ExtraDownloadPack)
         {
-            var pack = await db.ExtraQuotaPackSettings.AsNoTracking().FirstAsync(ct);
-            var adjustment = await db.UserQuotaAdjustments
-                .FirstOrDefaultAsync(a => a.TelegramUserId == payment.TelegramUserId && a.Platform == payment.Platform, ct);
-
-            if (adjustment is null)
-            {
-                adjustment = new UserQuotaAdjustment
-                {
-                    TelegramUserId = payment.TelegramUserId,
-                    Platform = payment.Platform.Value
-                };
-                db.UserQuotaAdjustments.Add(adjustment);
-            }
-
-            adjustment.ExtraDownloadCount += pack.ExtraDownloadCount;
-            adjustment.ExtraDownloadBytes += pack.ExtraDownloadBytes;
-            adjustment.UpdatedAt = DateTime.UtcNow;
+            await ApplyExtraQuotaPaymentAsync(payment, user, ct);
             user.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return null;
@@ -244,6 +240,7 @@ public class SubscriptionService(
 
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+        await adminMessaging.NotifyAdminPlanChangedAsync(telegramUserId, ct);
     }
 
     public async Task ExtendPlanAsync(long telegramUserId, int extraDays, CancellationToken ct = default)
@@ -261,6 +258,7 @@ public class SubscriptionService(
         user.PlanExpiresAt = baseDate.AddDays(extraDays);
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+        await adminMessaging.NotifyAdminPlanExtendedAsync(telegramUserId, extraDays, ct);
     }
 
     public async Task SetBanAsync(long telegramUserId, bool banned, CancellationToken ct = default)
@@ -275,21 +273,16 @@ public class SubscriptionService(
 
     public async Task AdjustQuotaAsync(
         long telegramUserId,
-        MediaPlatformKind platform,
         int extraCountDelta,
         long extraBytesDelta,
         CancellationToken ct = default)
     {
         var adjustment = await db.UserQuotaAdjustments
-            .FirstOrDefaultAsync(a => a.TelegramUserId == telegramUserId && a.Platform == platform, ct);
+            .FirstOrDefaultAsync(a => a.TelegramUserId == telegramUserId, ct);
 
         if (adjustment is null)
         {
-            adjustment = new UserQuotaAdjustment
-            {
-                TelegramUserId = telegramUserId,
-                Platform = platform
-            };
+            adjustment = new UserQuotaAdjustment { TelegramUserId = telegramUserId };
             db.UserQuotaAdjustments.Add(adjustment);
         }
 
@@ -297,6 +290,36 @@ public class SubscriptionService(
         adjustment.ExtraDownloadBytes = Math.Max(0, adjustment.ExtraDownloadBytes + extraBytesDelta);
         adjustment.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+    }
+
+    private async Task ApplyExtraQuotaPaymentAsync(
+        PaymentRecord payment,
+        BotUser user,
+        CancellationToken ct)
+    {
+        var plan = PlanLifecycleService.IsPaidPlanActive(user) ? user.Plan : SubscriptionPlan.Free;
+        var planRow = await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
+
+        var adjustment = await db.UserQuotaAdjustments
+            .FirstOrDefaultAsync(a => a.TelegramUserId == payment.TelegramUserId, ct);
+
+        if (adjustment is null)
+        {
+            adjustment = new UserQuotaAdjustment { TelegramUserId = payment.TelegramUserId };
+            db.UserQuotaAdjustments.Add(adjustment);
+        }
+
+        if (payment.Type is PaymentType.ExtraDownloadPack or PaymentType.ExtraQuota)
+        {
+            adjustment.ExtraDownloadCount += planRow.ExtraDownloadCountPack;
+            adjustment.ExtraDownloadBytes += planRow.ExtraDownloadBytesPack;
+        }
+        else if (payment.Type == PaymentType.ExtraDownloadCount)
+            adjustment.ExtraDownloadCount += planRow.ExtraDownloadCountPack;
+        else if (payment.Type == PaymentType.ExtraDownloadBytes)
+            adjustment.ExtraDownloadBytes += planRow.ExtraDownloadBytesPack;
+
+        adjustment.UpdatedAt = DateTime.UtcNow;
     }
 
     private static void SetPaymentAmounts(PaymentRecord payment, long toman)

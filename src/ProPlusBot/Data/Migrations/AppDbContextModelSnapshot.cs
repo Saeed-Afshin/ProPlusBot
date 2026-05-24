@@ -71,6 +71,11 @@ namespace ProPlusBot.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ConversationStateBackend")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -287,29 +292,66 @@ namespace ProPlusBot.Data.Migrations
                     b.ToTable("ErrorLogs");
                 });
 
-            modelBuilder.Entity("ProPlusBot.Entities.ExtraQuotaPackSettings", b =>
+            modelBuilder.Entity("ProPlusBot.Entities.MediaDownloadJobEntity", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("uuid");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<long>("ExtraDownloadBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("ExtraDownloadCount")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("PriceToman")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("UpdatedAt")
+                    b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorDetail")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("IncomingChatMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Platform")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResultSummary")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("YouTubeFormatId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("ExtraQuotaPackSettings");
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("IncomingChatMessageId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TelegramUserId");
+
+                    b.ToTable("MediaDownloadJobs", (string)null);
                 });
 
             modelBuilder.Entity("ProPlusBot.Entities.OtpSession", b =>
@@ -413,47 +455,43 @@ namespace ProPlusBot.Data.Migrations
                     b.ToTable("PaymentRecords");
                 });
 
-            modelBuilder.Entity("ProPlusBot.Entities.PlanPlatformLimit", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("LimitKind")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("LimitValue")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Period")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Plan")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Platform")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Plan", "Platform", "Period", "LimitKind")
-                        .IsUnique();
-
-                    b.ToTable("PlanPlatformLimits");
-                });
-
             modelBuilder.Entity("ProPlusBot.Entities.PlanPricing", b =>
                 {
                     b.Property<int>("Plan")
                         .HasColumnType("integer");
 
+                    b.Property<long>("ExtraDownloadBytesPack")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ExtraDownloadBytesPriceToman")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ExtraDownloadCountPack")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ExtraDownloadCountPriceToman")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MaxFileBytesPinterest")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MaxFileBytesYouTube")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MonthlyDownloadBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MonthlyDownloadCount")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("MonthlyPriceToman")
                         .HasColumnType("bigint");
+
+                    b.Property<long>("MonthlySearchCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("MonthlyTicketLimit")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -487,6 +525,86 @@ namespace ProPlusBot.Data.Migrations
                     b.ToTable("SearchUsageLogs");
                 });
 
+            modelBuilder.Entity("ProPlusBot.Entities.SupportTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastAdminReplyAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TelegramUserId");
+
+                    b.HasIndex("TelegramUserId", "Status");
+
+                    b.ToTable("SupportTickets");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.SupportTicketMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AdminDisplayName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("AdminUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("IncomingChatMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Sender")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminUserId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("TicketId");
+
+                    b.ToTable("SupportTicketMessages");
+                });
+
             modelBuilder.Entity("ProPlusBot.Entities.TrialSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -504,6 +622,54 @@ namespace ProPlusBot.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TrialSettings");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.UserInteractionLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("IncomingChatMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("InputSummary")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("MediaDownloadJobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultSummary")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("IncomingChatMessageId");
+
+                    b.HasIndex("MediaDownloadJobId");
+
+                    b.HasIndex("TelegramUserId");
+
+                    b.ToTable("UserInteractionLogs");
                 });
 
             modelBuilder.Entity("ProPlusBot.Entities.UserPlanPlatformLimit", b =>
@@ -545,19 +711,19 @@ namespace ProPlusBot.Data.Migrations
                     b.Property<long>("TelegramUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<int>("Platform")
-                        .HasColumnType("integer");
-
                     b.Property<long>("ExtraDownloadBytes")
                         .HasColumnType("bigint");
 
                     b.Property<int>("ExtraDownloadCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("ExtraSearchCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("TelegramUserId", "Platform");
+                    b.HasKey("TelegramUserId");
 
                     b.ToTable("UserQuotaAdjustments");
                 });
@@ -609,6 +775,24 @@ namespace ProPlusBot.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProPlusBot.Entities.MediaDownloadJobEntity", b =>
+                {
+                    b.HasOne("ProPlusBot.Entities.ChatMessage", "IncomingChatMessage")
+                        .WithMany()
+                        .HasForeignKey("IncomingChatMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProPlusBot.Entities.BotUser", "User")
+                        .WithMany()
+                        .HasForeignKey("TelegramUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IncomingChatMessage");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ProPlusBot.Entities.PaymentRecord", b =>
                 {
                     b.HasOne("ProPlusBot.Entities.BotUser", "User")
@@ -627,6 +811,60 @@ namespace ProPlusBot.Data.Migrations
                         .HasForeignKey("TelegramUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.SupportTicket", b =>
+                {
+                    b.HasOne("ProPlusBot.Entities.BotUser", "User")
+                        .WithMany()
+                        .HasForeignKey("TelegramUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.SupportTicketMessage", b =>
+                {
+                    b.HasOne("ProPlusBot.Entities.AdminUser", "AdminUser")
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProPlusBot.Entities.SupportTicket", "Ticket")
+                        .WithMany("Messages")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdminUser");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.UserInteractionLog", b =>
+                {
+                    b.HasOne("ProPlusBot.Entities.ChatMessage", "IncomingChatMessage")
+                        .WithMany()
+                        .HasForeignKey("IncomingChatMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProPlusBot.Entities.MediaDownloadJobEntity", "MediaDownloadJob")
+                        .WithMany()
+                        .HasForeignKey("MediaDownloadJobId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProPlusBot.Entities.BotUser", "User")
+                        .WithMany()
+                        .HasForeignKey("TelegramUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IncomingChatMessage");
+
+                    b.Navigation("MediaDownloadJob");
 
                     b.Navigation("User");
                 });
@@ -679,6 +917,11 @@ namespace ProPlusBot.Data.Migrations
                     b.Navigation("ReservedPlans");
 
                     b.Navigation("SearchUsages");
+                });
+
+            modelBuilder.Entity("ProPlusBot.Entities.SupportTicket", b =>
+                {
+                    b.Navigation("Messages");
                 });
 #pragma warning restore 612, 618
         }

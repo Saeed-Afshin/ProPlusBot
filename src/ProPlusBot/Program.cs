@@ -2,12 +2,14 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Auth;
 using ProPlusBot.Configuration;
 using ProPlusBot.Services.Media;
 using ProPlusBot.Services.Subscriptions;
+using ProPlusBot.Services.Tickets;
 using ProPlusBot.Data;
 using ProPlusBot.Services;
 using Scalar.AspNetCore;
@@ -19,11 +21,31 @@ builder.Services.Configure<SuperAdminOptions>(builder.Configuration.GetSection(S
 builder.Services.Configure<MediaDownloadOptions>(builder.Configuration.GetSection(MediaDownloadOptions.SectionName));
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection(RedisOptions.SectionName));
+builder.Services.Configure<ConversationStateOptions>(builder.Configuration.GetSection(ConversationStateOptions.SectionName));
+builder.Services.Configure<AppDataProtectionOptions>(builder.Configuration.GetSection(AppDataProtectionOptions.SectionName));
+
+var dataProtectionOptions = builder.Configuration
+    .GetSection(AppDataProtectionOptions.SectionName)
+    .Get<AppDataProtectionOptions>() ?? new AppDataProtectionOptions();
+
+var dataProtectionBuilder = builder.Services.AddDataProtection()
+    .SetApplicationName(
+        string.IsNullOrWhiteSpace(dataProtectionOptions.ApplicationName)
+            ? "ProPlusBot"
+            : dataProtectionOptions.ApplicationName);
+
+if (!string.IsNullOrWhiteSpace(dataProtectionOptions.KeysPath))
+{
+    var keysDir = new DirectoryInfo(dataProtectionOptions.KeysPath);
+    keysDir.Create();
+    dataProtectionBuilder.PersistKeysToFileSystem(keysDir);
+}
+
 builder.Services.AddMemoryCache();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
-builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers()
@@ -99,6 +121,8 @@ builder.Services.AddScoped<BotSettingsService>();
 builder.Services.AddScoped<BotFeatureService>();
 builder.Services.AddScoped<RoleResolverService>();
 builder.Services.AddScoped<ChatStorageService>();
+builder.Services.AddScoped<ProPlusBot.Services.Messaging.AdminMessagingService>();
+builder.Services.AddScoped<ProPlusBot.Services.Messaging.BaleUserProfileSyncService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<BotUpdateHandler>();
 builder.Services.AddScoped<QuotaService>();
@@ -108,11 +132,17 @@ builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<PlanCatalogService>();
 builder.Services.AddScoped<BalePaymentService>();
 builder.Services.AddScoped<SubscriptionAdminService>();
+builder.Services.AddScoped<PlanDefinitionService>();
+builder.Services.AddScoped<AdminUserBulkQuotaService>();
 builder.Services.AddScoped<TrialSettingsService>();
 builder.Services.AddScoped<ErrorLogService>();
 builder.Services.AddScoped<ErrorLogAdminService>();
 builder.Services.AddScoped<ChatLogAdminService>();
 builder.Services.AddScoped<SubscriptionBotHandler>();
+builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<TicketAdminService>();
+builder.Services.AddScoped<TicketNotificationService>();
+builder.Services.AddScoped<TicketBotHandler>();
 builder.Services.AddScoped<MediaBotHandler>();
 builder.Services.AddScoped<BaleApiFileSender>();
 builder.Services.AddHttpClient(nameof(BaleApiFileSender), client =>
@@ -120,7 +150,14 @@ builder.Services.AddHttpClient(nameof(BaleApiFileSender), client =>
     client.Timeout = TimeSpan.FromMinutes(10);
 });
 builder.Services.AddScoped<MediaDownloadProcessor>();
+builder.Services.AddScoped<MediaDownloadJobService>();
+builder.Services.AddScoped<UserInteractionLogService>();
+builder.Services.AddSingleton<ProPlusBot.Services.Media.State.ConversationStateBackendHolder>();
+builder.Services.AddSingleton<ProPlusBot.Services.Media.State.MemoryConversationStateStore>();
+builder.Services.AddSingleton<ProPlusBot.Services.Media.State.RedisConversationStateStore>();
+builder.Services.AddSingleton<ProPlusBot.Services.Media.State.ConversationStateStoreProvider>();
 builder.Services.AddSingleton<ConversationStateService>();
+builder.Services.AddHostedService<ConversationStateBackendBootstrap>();
 builder.Services.AddSingleton<MediaDownloadQueue>();
 builder.Services.AddSingleton<MediaToolsLocator>();
 builder.Services.AddHttpClient(nameof(MediaToolsBootstrapHostedService), client =>
@@ -155,6 +192,7 @@ builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<AdminManagementService>();
 builder.Services.AddHostedService<PendingPaymentExpiryHostedService>();
 builder.Services.AddHostedService<PlanExpiryHostedService>();
+builder.Services.AddHostedService<TicketAutoCloseHostedService>();
 builder.Services.AddHostedService<BotHostedService>();
 
 var app = builder.Build();
@@ -167,6 +205,19 @@ startupLogger.LogInformation(
     app.Environment.EnvironmentName,
     ConfigurationValidation.DescribeConnection(app.Configuration.GetConnectionString("DefaultConnection")),
     ConfigurationValidation.MaskBotToken(app.Configuration["Bot:Token"]));
+
+if (string.IsNullOrWhiteSpace(dataProtectionOptions.KeysPath))
+{
+    startupLogger.LogWarning(
+        "DataProtection:KeysPath is not set. Antiforgery and TempData cookies will break after container restart. " +
+        "Set DataProtection__KeysPath to a persisted directory (e.g. /app/data/dataprotection-keys).");
+}
+else
+{
+    startupLogger.LogInformation(
+        "Data Protection keys persisted at {KeysPath}",
+        dataProtectionOptions.KeysPath);
+}
 
 using (var scope = app.Services.CreateScope())
 {
@@ -182,7 +233,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+if (app.Configuration.GetValue("EnableHttpsRedirection", app.Environment.IsDevelopment()))
+    app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();

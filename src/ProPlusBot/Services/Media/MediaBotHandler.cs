@@ -13,6 +13,7 @@ namespace ProPlusBot.Services.Media;
 public class MediaBotHandler(
     ConversationStateService conversationState,
     MediaDownloadQueue downloadQueue,
+    UserInteractionLogService interactionLog,
     YtDlpService ytDlp,
     PinterestSearchService pinterestSearch,
     SearchResultGridComposer gridComposer,
@@ -46,10 +47,10 @@ public class MediaBotHandler(
             return true;
         }
 
-        if (TryParseSearchNextCallback(callback.Data, out var nextPrefix))
+        if (TryParseSearchPageNavCallback(callback.Data, out var navPrefix, out var pageDelta))
         {
             var session = conversationState.GetSearchSession(userId);
-            if (session is null || !string.Equals(session.CallbackPrefix, nextPrefix, StringComparison.Ordinal))
+            if (session is null || !string.Equals(session.CallbackPrefix, navPrefix, StringComparison.Ordinal))
             {
                 conversationState.Clear(userId);
                 await fileSender.SendTextAsync(bot, userId,
@@ -57,9 +58,15 @@ public class MediaBotHandler(
                 return true;
             }
 
-            if (!session.HasMoreResults)
+            if (pageDelta > 0 && !session.HasMoreResults)
             {
                 await fileSender.SendTextAsync(bot, userId, "نتیجهٔ بیشتری وجود ندارد.", ct);
+                return true;
+            }
+
+            if (pageDelta < 0 && session.Page <= 0)
+            {
+                await fileSender.SendTextAsync(bot, userId, "صفحهٔ قبلی وجود ندارد.", ct);
                 return true;
             }
 
@@ -69,7 +76,7 @@ public class MediaBotHandler(
             if (!await CheckSearchQuotaAsync(bot, userId, session.Platform, ct))
                 return true;
 
-            await LoadAndSendSearchPageAsync(bot, userId, session, session.Page + 1, ct);
+            await LoadAndSendSearchPageAsync(bot, userId, session, session.Page + pageDelta, ct);
             return true;
         }
 
@@ -89,8 +96,9 @@ public class MediaBotHandler(
                 return true;
             }
 
-            conversationState.SetFormatSession(userId, formatSession with { Page = formatPage });
-            await SendYouTubeFormatPageAsync(bot, userId, formatSession with { Page = formatPage }, ct);
+            var updated = formatSession with { Page = formatPage, FormatMenuMessageId = null };
+            conversationState.SetFormatSession(userId, updated);
+            await SendYouTubeFormatPageAsync(bot, userId, updated, ct);
             return true;
         }
 
@@ -124,7 +132,15 @@ public class MediaBotHandler(
             ? MediaDownloadSource.YouTubeSearch
             : MediaDownloadSource.PinterestSearch;
 
-        await TryEnqueueDownloadAsync(bot, userId, searchSession.Results[index].Url, searchSession.Platform, source, ct);
+        await interactionLog.LogAsync(
+            userId,
+            UserInteractionKind.SearchResultPick,
+            UserInteractionStatus.Info,
+            searchSession.Results[index].Url,
+            MediaJobDisplay.ToPlatformName(searchSession.Platform),
+            ct: ct);
+        await TryEnqueueDownloadAsync(
+            bot, userId, searchSession.Results[index].Url, searchSession.Platform, source, null, ct);
         return true;
     }
 
@@ -137,13 +153,14 @@ public class MediaBotHandler(
         var session = conversationState.GetFormatSession(userId);
         if (session is null || formatIndex < 0 || formatIndex >= session.Formats.Count)
         {
-            conversationState.Clear(userId);
+            conversationState.ClearFormatSession(userId);
             await fileSender.SendTextAsync(bot, userId,
                 "لیست کیفیت منقضی شده است. لینک را دوباره بفرستید.", ct);
             return;
         }
 
         conversationState.RefreshFormatSession(userId);
+        conversationState.RefreshSearchSession(userId);
 
         if (!await userAccess.IsPrivilegedUserAsync(userId, ct))
         {
@@ -153,6 +170,14 @@ public class MediaBotHandler(
                 ct);
             if (!canDownload)
             {
+                await interactionLog.LogAsync(
+                    userId,
+                    UserInteractionKind.QuotaOrAccessBlocked,
+                    UserInteractionStatus.Failed,
+                    session.Url,
+                    quotaMessage,
+                    session.IncomingChatMessageId,
+                    ct: ct);
                 await fileSender.SendTextAsync(bot, userId,
                     $"{quotaMessage}\nاز «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.",
                     ct);
@@ -165,16 +190,32 @@ public class MediaBotHandler(
         {
             await fileSender.SendTextAsync(bot, userId,
                 $"حجم این کیفیت ({format.SizeDisplay}) بیشتر از حد مجاز بسته شما " +
-                $"({ByteUnits.FormatMegabytes(session.MaxFileBytesForPlan)}) است.\n" +
+                $"({ByteUnits.FormatVolume(session.MaxFileBytesForPlan)}) است.\n" +
                 $"کیفیت کوچک‌تر انتخاب کنید یا از «{SubscriptionBotHandler.PlansButtonText}» بسته بالاتر بگیرید.",
                 ct);
             return;
         }
 
-        conversationState.Clear(userId);
+        if (session.FormatMenuMessageId is int menuMessageId)
+            await fileSender.TryRemoveInlineKeyboardAsync(bot, userId, menuMessageId, ct);
+
+        conversationState.ClearFormatSession(userId);
         await fileSender.SendTextAsync(bot, userId, $"در حال دانلود ({format.Label})…", ct);
-        await downloadQueue.EnqueueAsync(
-            new MediaDownloadJob(userId, session.Url, DetectedMediaPlatform.YouTube, session.Source, format.FormatId),
+        await interactionLog.LogAsync(
+            userId,
+            UserInteractionKind.FormatSelected,
+            UserInteractionStatus.Info,
+            session.Url,
+            format.Label,
+            session.IncomingChatMessageId,
+            ct: ct);
+        await EnqueueDownloadAsync(
+            userId,
+            session.Url,
+            DetectedMediaPlatform.YouTube,
+            session.Source,
+            format.FormatId,
+            session.IncomingChatMessageId,
             ct);
     }
 
@@ -186,7 +227,13 @@ public class MediaBotHandler(
     {
         var text = YouTubeFormatPresenter.BuildMessage(session);
         var markup = YouTubeFormatPresenter.BuildKeyboard(session);
-        await fileSender.SendTextAsync(bot, userId, text, markup, ct);
+        var messageId = await fileSender.SendTextAsync(bot, userId, text, markup, ct);
+        if (messageId is not null)
+        {
+            conversationState.SetFormatSession(
+                userId,
+                session with { FormatMenuMessageId = messageId });
+        }
     }
 
     private static bool TryParseYouTubeFormatSelectCallback(string data, out int index)
@@ -215,6 +262,7 @@ public class MediaBotHandler(
     public async Task<bool> TryHandleMessageAsync(
         ITelegramBotClient bot,
         Message message,
+        long? incomingChatMessageId,
         CancellationToken ct)
     {
         var userId = message.From!.Id;
@@ -249,8 +297,22 @@ public class MediaBotHandler(
             }
 
             conversationState.Clear(userId);
+            await interactionLog.LogAsync(
+                userId,
+                UserInteractionKind.LinkDetected,
+                UserInteractionStatus.Info,
+                detected.Value.Url,
+                MediaJobDisplay.ToPlatformName(detected.Value.Platform),
+                incomingChatMessageId,
+                ct: ct);
             await TryEnqueueDownloadAsync(
-                bot, userId, detected.Value.Url, detected.Value.Platform, MediaDownloadSource.Url, ct);
+                bot,
+                userId,
+                detected.Value.Url,
+                detected.Value.Platform,
+                MediaDownloadSource.Url,
+                incomingChatMessageId,
+                ct);
             return true;
         }
 
@@ -273,6 +335,14 @@ public class MediaBotHandler(
                 return true;
             }
 
+            await interactionLog.LogAsync(
+                userId,
+                UserInteractionKind.SearchQuery,
+                UserInteractionStatus.Info,
+                text!,
+                "یوتیوب",
+                incomingChatMessageId,
+                ct: ct);
             await StartSearchAsync(bot, userId, text!, DetectedMediaPlatform.YouTube, ct);
             return true;
         }
@@ -286,6 +356,14 @@ public class MediaBotHandler(
                 return true;
             }
 
+            await interactionLog.LogAsync(
+                userId,
+                UserInteractionKind.SearchQuery,
+                UserInteractionStatus.Info,
+                text!,
+                "پینترست",
+                incomingChatMessageId,
+                ct: ct);
             await StartSearchAsync(bot, userId, text!, DetectedMediaPlatform.Pinterest, ct);
             return true;
         }
@@ -327,27 +405,33 @@ public class MediaBotHandler(
         ITelegramBotClient bot,
         long userId,
         MediaSearchSession current,
-        int nextPage,
+        int targetPage,
         CancellationToken ct)
     {
-        await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
+        var gridMessageId = current.SearchGridMessageId;
+        if (gridMessageId is null)
+            await fileSender.SendTextAsync(bot, userId, "در حال جستجو…", ct);
 
         var session = await FetchSearchPageAsync(
             current.Query,
             current.Platform,
-            nextPage,
+            targetPage,
             current.PinterestBookmark,
             current.GridLayout,
             ct);
 
         if (session is null || session.Results.Count == 0)
         {
-            await fileSender.SendTextAsync(bot, userId, "نتیجهٔ بیشتری وجود ندارد.", ct);
+            var noMoreText = targetPage < current.Page
+                ? "صفحهٔ قبلی در دسترس نیست."
+                : "نتیجهٔ بیشتری وجود ندارد.";
+            await fileSender.SendTextAsync(bot, userId, noMoreText, ct);
             return;
         }
 
-        conversationState.SetSearchSession(userId, session);
-        await SendSearchResultsPageAsync(bot, userId, session, ct);
+        var merged = session with { SearchGridMessageId = gridMessageId };
+        conversationState.SetSearchSession(userId, merged);
+        await SendSearchResultsPageAsync(bot, userId, merged, ct);
     }
 
     private async Task<MediaSearchSession?> FetchSearchPageAsync(
@@ -376,7 +460,17 @@ public class MediaBotHandler(
 
         if (platform == DetectedMediaPlatform.Pinterest)
         {
-            var pinPage = await pinterestSearch.SearchPageAsync(query, pinterestBookmark, pageSize, ct);
+            string? bookmark = null;
+            PinterestSearchPage pinPage = new([], null);
+            for (var p = 0; p <= page; p++)
+            {
+                pinPage = await pinterestSearch.SearchPageAsync(query, bookmark, pageSize, ct);
+                if (pinPage.Items.Count == 0)
+                    return null;
+
+                bookmark = pinPage.NextBookmark;
+            }
+
             var hasMore = pinPage.Items.Count == pageSize && !string.IsNullOrWhiteSpace(pinPage.NextBookmark);
             return new MediaSearchSession(
                 query,
@@ -441,17 +535,17 @@ public class MediaBotHandler(
         var gridJpeg = await gridComposer.CreateGridJpegAsync(session.Results, session.GridLayout, ct);
         if (gridJpeg is not null)
         {
-            // Bale often rejects sendPhoto when caption + large inline keyboard are combined.
-            if (await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, replyMarkup: null, ct))
+            var messageId = await fileSender.PublishSearchGridAsync(
+                bot, userId, session.SearchGridMessageId, gridJpeg, caption, markup, ct);
+            if (messageId is not null)
             {
-                if (markup.InlineKeyboard.Any())
-                    await fileSender.SendTextAsync(bot, userId, "یک شماره را انتخاب کنید:", markup, ct);
+                conversationState.SetSearchSession(
+                    userId,
+                    session with { SearchGridMessageId = messageId });
                 return;
             }
 
-            logger.LogWarning("Search grid photo send failed for user {UserId}; trying with keyboard attached", userId);
-            if (await fileSender.SendSearchGridPhotoAsync(bot, userId, gridJpeg, caption, markup, ct))
-                return;
+            logger.LogWarning("Search grid publish failed for user {UserId}", userId);
         }
         else
         {
@@ -491,34 +585,52 @@ public class MediaBotHandler(
                 keyboardRows.Add(buttonRow.ToArray());
         }
 
+        var navRow = new List<InlineKeyboardButton>();
+        if (session.Page > 0)
+        {
+            navRow.Add(InlineKeyboardButton.WithCallbackData(
+                MediaConstants.PrevPageButtonText,
+                $"{session.CallbackPrefix}{MediaConstants.CallbackPrevPage}"));
+        }
+
         if (session.HasMoreResults)
         {
-            keyboardRows.Add(
-            [
-                InlineKeyboardButton.WithCallbackData(
-                    MediaConstants.NextPageButtonText,
-                    $"{session.CallbackPrefix}{MediaConstants.CallbackNextPage}")
-            ]);
+            navRow.Add(InlineKeyboardButton.WithCallbackData(
+                MediaConstants.NextPageButtonText,
+                $"{session.CallbackPrefix}{MediaConstants.CallbackNextPage}"));
         }
+
+        if (navRow.Count > 0)
+            keyboardRows.Add(navRow.ToArray());
 
         return new InlineKeyboardMarkup(keyboardRows);
     }
 
-    private static bool TryParseSearchNextCallback(string data, out string prefix)
+    private static bool TryParseSearchPageNavCallback(string data, out string prefix, out int pageDelta)
     {
-        if (data == MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage)
-        {
-            prefix = MediaConstants.CallbackYouTubePrefix;
-            return true;
-        }
-
-        if (data == MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackNextPage)
-        {
-            prefix = MediaConstants.CallbackPinterestPrefix;
-            return true;
-        }
-
         prefix = string.Empty;
+        pageDelta = 0;
+
+        if (data == MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage
+            || data == MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackNextPage)
+        {
+            prefix = data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal)
+                ? MediaConstants.CallbackYouTubePrefix
+                : MediaConstants.CallbackPinterestPrefix;
+            pageDelta = 1;
+            return true;
+        }
+
+        if (data == MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackPrevPage
+            || data == MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackPrevPage)
+        {
+            prefix = data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal)
+                ? MediaConstants.CallbackYouTubePrefix
+                : MediaConstants.CallbackPinterestPrefix;
+            pageDelta = -1;
+            return true;
+        }
+
         return false;
     }
 
@@ -531,7 +643,7 @@ public class MediaBotHandler(
             return false;
 
         if (data.StartsWith(MediaConstants.CallbackYouTubePrefix, StringComparison.Ordinal)
-            && data != MediaConstants.CallbackYouTubePrefix + MediaConstants.CallbackNextPage)
+            && !IsSearchNavCallback(data, MediaConstants.CallbackYouTubePrefix))
         {
             prefix = MediaConstants.CallbackYouTubePrefix;
             var suffix = data[prefix.Length..];
@@ -541,7 +653,7 @@ public class MediaBotHandler(
         }
 
         if (data.StartsWith(MediaConstants.CallbackPinterestPrefix, StringComparison.Ordinal)
-            && data != MediaConstants.CallbackPinterestPrefix + MediaConstants.CallbackNextPage)
+            && !IsSearchNavCallback(data, MediaConstants.CallbackPinterestPrefix))
         {
             prefix = MediaConstants.CallbackPinterestPrefix;
             var suffix = data[prefix.Length..];
@@ -552,6 +664,10 @@ public class MediaBotHandler(
 
         return false;
     }
+
+    private static bool IsSearchNavCallback(string data, string prefix) =>
+        data == prefix + MediaConstants.CallbackNextPage
+        || data == prefix + MediaConstants.CallbackPrevPage;
 
     private async Task<bool> CanUsePlatformAsync(
         ITelegramBotClient bot,
@@ -580,6 +696,7 @@ public class MediaBotHandler(
         string url,
         DetectedMediaPlatform platform,
         MediaDownloadSource source,
+        long? incomingChatMessageId,
         CancellationToken ct)
     {
         if (!await botFeatures.CanUsePlatformAsync(userId, platform, ct))
@@ -600,6 +717,14 @@ public class MediaBotHandler(
             var (allowed, message) = await quotaService.CanDownloadAsync(userId, kind, ct);
             if (!allowed)
             {
+                await interactionLog.LogAsync(
+                    userId,
+                    UserInteractionKind.QuotaOrAccessBlocked,
+                    UserInteractionStatus.Failed,
+                    url,
+                    message,
+                    incomingChatMessageId,
+                    ct: ct);
                 await fileSender.SendTextAsync(bot, userId,
                     $"{message}\nاز «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.",
                     ct);
@@ -609,12 +734,12 @@ public class MediaBotHandler(
 
         if (platform == DetectedMediaPlatform.YouTube)
         {
-            await OfferYouTubeFormatSelectionAsync(bot, userId, url, source, ct);
+            await OfferYouTubeFormatSelectionAsync(bot, userId, url, source, incomingChatMessageId, ct);
             return;
         }
 
         await fileSender.SendTextAsync(bot, userId, "در حال دانلود…", ct);
-        await downloadQueue.EnqueueAsync(new MediaDownloadJob(userId, url, platform, source), ct);
+        await EnqueueDownloadAsync(userId, url, platform, source, null, incomingChatMessageId, ct);
     }
 
     private async Task OfferYouTubeFormatSelectionAsync(
@@ -622,6 +747,7 @@ public class MediaBotHandler(
         long userId,
         string url,
         MediaDownloadSource source,
+        long? incomingChatMessageId,
         CancellationToken ct)
     {
         await fileSender.SendTextAsync(bot, userId, "در حال دریافت کیفیت‌های موجود…", ct);
@@ -639,6 +765,14 @@ public class MediaBotHandler(
                 nameof(MediaBotHandler),
                 ErrorLogServices.YouTube,
                 ct);
+            await interactionLog.LogAsync(
+                userId,
+                UserInteractionKind.FormatListFailed,
+                UserInteractionStatus.Failed,
+                url,
+                "دریافت کیفیت ناموفق",
+                incomingChatMessageId,
+                ct: ct);
             await fileSender.SendTextAsync(bot, userId,
                 "دریافت کیفیت‌ها ناموفق بود. لطفاً بعداً دوباره تلاش کنید یا لینک دیگری بفرستید.",
                 ct);
@@ -646,9 +780,43 @@ public class MediaBotHandler(
         }
 
         var maxBytes = await GetEffectiveMaxFileBytesAsync(userId, ct);
-        var session = new YouTubeFormatSession(url, list.Formats, source, maxBytes);
+        var session = new YouTubeFormatSession(
+            url, list.Formats, source, maxBytes, IncomingChatMessageId: incomingChatMessageId);
         conversationState.SetFormatSession(userId, session);
+        conversationState.RefreshSearchSession(userId);
+        await interactionLog.LogAsync(
+            userId,
+            UserInteractionKind.FormatListShown,
+            UserInteractionStatus.Success,
+            url,
+            $"{list.Formats.Count} کیفیت",
+            incomingChatMessageId,
+            ct: ct);
         await SendYouTubeFormatPageAsync(bot, userId, session, ct);
+    }
+
+    private async Task EnqueueDownloadAsync(
+        long userId,
+        string url,
+        DetectedMediaPlatform platform,
+        MediaDownloadSource source,
+        string? youtubeFormatId,
+        long? incomingChatMessageId,
+        CancellationToken ct)
+    {
+        var jobId = await downloadQueue.EnqueueAsync(
+            new MediaDownloadJob(userId, url, platform, source, youtubeFormatId),
+            incomingChatMessageId,
+            ct);
+        await interactionLog.LogAsync(
+            userId,
+            UserInteractionKind.DownloadQueued,
+            UserInteractionStatus.Pending,
+            url,
+            "در صف",
+            incomingChatMessageId,
+            jobId,
+            ct);
     }
 
     private async Task<long> GetEffectiveMaxFileBytesAsync(long userId, CancellationToken ct)

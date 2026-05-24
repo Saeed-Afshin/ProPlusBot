@@ -1,0 +1,102 @@
+@page
+@model ProPlusBot.Pages.Messages.IndexModel
+@using ProPlusBot.Pages.Messages
+@using ProPlusBot.Services.Messaging
+@{
+    ViewData["Title"] = "پیام و همگام‌سازی";
+}
+
+<h2 class="mb-4">ارسال پیام و همگام‌سازی از بله</h2>
+
+@if (Model.SuccessMessage is not null) { <div class="alert alert-success">@Model.SuccessMessage</div> }
+@if (Model.ErrorMessage is not null) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+@if (Model.Target == AdminUserTargetKind.Selected && Model.SelectedUserCount > 0)
+{
+    <div class="alert alert-info">@Model.SelectedUserCount کاربر از صفحه کاربران انتخاب شده است.</div>
+}
+
+<form method="post" class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">مخاطبان</h5>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetSingle" value="@AdminUserTargetKind.Single" />
+                <label class="form-check-label" for="targetSingle">یک کاربر (شناسه تلگرام)</label>
+            </div>
+            <div class="ms-4 mt-2">
+                <input asp-for="SingleUserId" class="form-control" placeholder="مثال: 123456789" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetAll" value="@AdminUserTargetKind.All" />
+                <label class="form-check-label" for="targetAll">همه کاربران ثبت‌شده در پایگاه داده</label>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetSelected" value="@AdminUserTargetKind.Selected" />
+                <label class="form-check-label" for="targetSelected">انتخابی (شناسه‌ها با ویرگول یا خط جدید)</label>
+            </div>
+            <div class="ms-4 mt-2">
+                <textarea asp-for="SelectedUserIds" class="form-control font-monospace" rows="4" dir="ltr" placeholder="123,456,789"></textarea>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="MessageText" class="form-label">متن پیام</label>
+            <p class="small text-muted mb-2">برای درج متغیر روی دکمه کلیک کنید:</p>
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                @foreach (var ph in MessageTemplateHelper.Placeholders)
+                {
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary placeholder-insert font-monospace"
+                            data-token="@ph.Token"
+                            title="@ph.Token">
+                        @ph.Label
+                    </button>
+                }
+            </div>
+            <textarea asp-for="MessageText" class="form-control" rows="6" placeholder="سلام {FirstName}، بسته شما {Plan} است."></textarea>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <button type="submit" asp-page-handler="Send" class="btn btn-primary">ارسال پیام</button>
+            <button type="submit" asp-page-handler="Sync" class="btn btn-outline-secondary"
+                    onclick="return confirm('اطلاعات نام و نام کاربری از بله برای مخاطبان انتخاب‌شده به‌روزرسانی می‌شود. ادامه؟');">
+                همگام‌سازی از بله
+            </button>
+        </div>
+    </div>
+</form>
+
+<p class="text-muted small">
+    کاربران مسدود پیام دریافت نمی‌کنند. پس از تغییر یا تمدید دستی بسته در صفحه مدیریت کاربر، ربات به‌صورت خودکار به کاربر اطلاع می‌دهد.
+</p>
+
+@section Scripts {
+<script>
+(function () {
+  function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    textarea.value = textarea.value.slice(0, start) + text + textarea.value.slice(end);
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+  }
+
+  const messageField = document.getElementById('MessageText');
+  if (!messageField) return;
+
+  document.querySelectorAll('.placeholder-insert').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      insertAtCursor(messageField, btn.getAttribute('data-token') || '');
+    });
+  });
+})();
+</script>
+}

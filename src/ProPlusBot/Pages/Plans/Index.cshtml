@@ -20,126 +20,97 @@
             <div class="col-md-4">
                 <label class="form-label" asp-for="PostedTrialDurationDays">مدت دوره آزمایشی (روز)</label>
                 <input asp-for="PostedTrialDurationDays" class="form-control" type="number" min="1" max="365" />
-                <div class="form-text">کاربران جدید تا این مدت می‌توانند از ربات استفاده کنند. پس از آن باید بسته بخرند.</div>
             </div>
             <div class="col-md-4">
                 <button type="submit" class="btn btn-primary">ذخیره مدت آزمایشی</button>
             </div>
         </form>
-        <p class="text-muted small mb-0 mt-3">
-            محدودیت‌های جستجو و دانلود بسته آزمایشی در جدول زیر (ستون «آزمایشی») قابل ویرایش است.
-        </p>
     </div>
 </div>
 
-<div class="table-responsive mb-4">
-    <table class="table table-bordered table-striped align-middle text-center pricing-matrix-table">
-        <thead class="table-dark">
-        <tr>
-            <th class="row-label-col">پلتفرم</th>
-            <th class="row-label-col">محدودیت ماهانه</th>
-            @foreach (var plan in Model.PlanColumns)
-            {
-                <th class="plan-col">@MediaPlatformMapper.ToDisplayName(plan)</th>
-            }
-            <th class="action-col">ذخیره</th>
-            <th class="action-col">لغو</th>
-        </tr>
-        </thead>
-        <tbody>
-        @{
-            var priceFormId = "form-plan-prices";
-        }
-        <tr class="table-secondary">
-            <td class="row-label-col">—</td>
-            <td class="row-label-col">قیمت ماهانه (تومان)</td>
-            @foreach (var plan in Model.PlanColumns)
-            {
-                <td class="plan-col">
-                    <input type="number"
-                           form="@priceFormId"
-                           name="PostedPlanPrices[@((int)plan)]"
-                           value="@Model.PlanPrices[plan]"
-                           class="form-control pricing-plan-input"
-                           min="0"
-                           maxlength="7"
-                           inputmode="numeric" />
-                </td>
-            }
-            <td class="action-col">
-                <button type="submit" form="@priceFormId" class="btn btn-sm btn-primary">ذخیره</button>
-            </td>
-            <td class="action-col">
-                <a asp-page="./Index" class="btn btn-outline-secondary btn-sm">لغو</a>
-            </td>
-        </tr>
-        <form id="@priceFormId" method="post" asp-page-handler="SavePlanPrices" class="d-none"></form>
-
-        @foreach (var row in Model.LimitRows)
-        {
-            var rowFormId = $"form-limit-{(int)row.Platform}-{(int)row.Period}-{(int)row.LimitKind}";
+<form method="post" asp-page-handler="SavePlans">
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped align-middle text-center">
+            <thead class="table-dark">
             <tr>
-                <td class="row-label-col">@PlanLimitDisplay.PlatformLabel(row.Platform)</td>
-                <td class="row-label-col">@PlanLimitDisplay.MonthlyLimitLabel(row.LimitKind)</td>
-                @foreach (var plan in Model.PlanColumns)
+                <th class="text-start">تنظیم</th>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
                 {
-                    var cell = row.Cells[plan];
-                    <td class="plan-col">
-                        @if (cell.LimitId > 0)
-                        {
-                            <input type="number"
-                                   form="@rowFormId"
-                                   name="planValues[@((int)plan)]"
-                                   value="@cell.DisplayValue"
-                                   class="form-control pricing-plan-input"
-                                   min="0"
-                                   maxlength="7"
-                                   inputmode="numeric"
-                                   step="@(ByteUnits.IsByteLimitKind(row.LimitKind) ? "0.01" : "1")" />
-                        }
-                        else
-                        {
-                            <span class="text-muted">—</span>
-                        }
-                    </td>
+                    <th>@MediaPlatformMapper.ToDisplayName(Model.PostedPlans[c].Plan)</th>
+                    <input type="hidden" name="PostedPlans[@c].Plan" value="@((int)Model.PostedPlans[c].Plan)" />
                 }
-                <td class="action-col">
-                    <button type="submit" form="@rowFormId" class="btn btn-sm btn-primary">ذخیره</button>
-                </td>
-                <td class="action-col">
-                    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">لغو</a>
-                </td>
             </tr>
-            <form id="@rowFormId" method="post" asp-page-handler="SaveLimitRow" class="d-none">
-                <input type="hidden" name="platform" value="@((int)row.Platform)" />
-                <input type="hidden" name="period" value="@((int)row.Period)" />
-                <input type="hidden" name="limitKind" value="@((int)row.LimitKind)" />
-            </form>
-        }
-        </tbody>
-    </table>
-</div>
-
-<div class="card">
-    <div class="card-header">بسته سهمیه اضافه</div>
-    <div class="card-body">
-        <form method="post" asp-page-handler="SaveExtra">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">قیمت (تومان)</label>
-                    <input asp-for="ExtraPrice" class="form-control" type="number" min="0" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">تعداد دانلود اضافه</label>
-                    <input asp-for="ExtraCount" class="form-control" type="number" min="0" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">حجم اضافه (مگابایت)</label>
-                    <input asp-for="ExtraMegabytes" class="form-control" type="number" min="0" step="0.01" />
-                </div>
-            </div>
-            <button type="submit" class="btn btn-primary mt-3">ذخیره سهمیه اضافه</button>
-            <a asp-page="./Index" class="btn btn-outline-secondary mt-3">لغو</a>
-        </form>
+            </thead>
+            <tbody>
+            <tr>
+                <td class="text-start">قیمت ماهانه (تومان)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MonthlyPriceToman" value="@Model.PostedPlans[c].MonthlyPriceToman" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">تعداد دانلود ماهانه</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MonthlyDownloadCount" value="@Model.PostedPlans[c].MonthlyDownloadCount" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">حجم دانلود ماهانه (مگابایت)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MonthlyDownloadMegabytes" value="@Model.PostedPlans[c].MonthlyDownloadMegabytes" class="form-control form-control-sm" min="0" step="0.01" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">جستجو ماهانه (مشترک)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MonthlySearchCount" value="@Model.PostedPlans[c].MonthlySearchCount" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">تیکت پشتیبانی (ماهانه)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MonthlyTicketLimit" value="@Model.PostedPlans[c].MonthlyTicketLimit" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">حداکثر حجم هر فایل (مگابایت)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].MaxFileMegabytes" value="@Model.PostedPlans[c].MaxFileMegabytes" class="form-control form-control-sm" min="0" step="0.01" /></td>
+                }
+            </tr>
+            <tr class="table-secondary">
+                <td class="text-start" colspan="@(Model.PostedPlans.Count + 1)"><strong>سهمیه اضافه (یک بسته: تعداد + حجم + قیمت)</strong></td>
+            </tr>
+            <tr>
+                <td class="text-start">قیمت سهمیه اضافه (تومان)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].ExtraDownloadPackPriceToman" value="@Model.PostedPlans[c].ExtraDownloadPackPriceToman" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">تعداد دانلود در بسته اضافه</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].ExtraDownloadCountPack" value="@Model.PostedPlans[c].ExtraDownloadCountPack" class="form-control form-control-sm" min="0" /></td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">حجم بسته اضافه (مگابایت)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td><input type="number" name="PostedPlans[@c].ExtraDownloadPackMegabytes" value="@Model.PostedPlans[c].ExtraDownloadPackMegabytes" class="form-control form-control-sm" min="0" step="0.01" /></td>
+                }
+            </tr>
+            </tbody>
+        </table>
     </div>
-</div>
+    <button type="submit" class="btn btn-primary">ذخیره همه بسته‌ها</button>
+    <a asp-page="./Index" class="btn btn-outline-secondary">لغو</a>
+</form>

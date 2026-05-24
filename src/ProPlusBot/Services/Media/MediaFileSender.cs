@@ -3,6 +3,7 @@ using ProPlusBot.Configuration;
 using ProPlusBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProPlusBot.Services.Media;
@@ -19,14 +20,14 @@ public class MediaFileSender(
     private readonly bool _useBaleApi =
         botOptions.Value.BaleApiBaseUrl.Contains("bale", StringComparison.OrdinalIgnoreCase);
 
-    public Task SendTextAsync(
+    public Task<int?> SendTextAsync(
         ITelegramBotClient bot,
         long chatId,
         string text,
         CancellationToken ct) =>
         SendTextAsync(bot, chatId, text, replyMarkup: null, ct);
 
-    public async Task SendTextAsync(
+    public async Task<int?> SendTextAsync(
         ITelegramBotClient bot,
         long chatId,
         string text,
@@ -35,10 +36,47 @@ public class MediaFileSender(
     {
         var sent = await bot.SendMessage(chatId, text, replyMarkup: replyMarkup, cancellationToken: ct);
         await chatStorage.SaveOutgoingAsync(chatId, text, sent.MessageId, ct);
+        return sent.MessageId;
     }
 
-    /// <summary>Sends the 3×3 search preview grid (multipart on Bale — stream upload fails there).</summary>
-    public async Task<bool> SendSearchGridPhotoAsync(
+    public async Task TryRemoveInlineKeyboardAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        int messageId,
+        CancellationToken ct)
+    {
+        try
+        {
+            await bot.EditMessageReplyMarkup(chatId, messageId, replyMarkup: null, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not remove inline keyboard from message {MessageId} in chat {ChatId}", messageId, chatId);
+        }
+    }
+
+    /// <summary>Sends or edits one search-grid photo with caption and inline keypad.</summary>
+    public async Task<int?> PublishSearchGridAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        int? existingMessageId,
+        byte[] imageBytes,
+        string caption,
+        InlineKeyboardMarkup replyMarkup,
+        CancellationToken ct)
+    {
+        if (existingMessageId is int messageId
+            && await TryUpdateSearchGridAsync(bot, chatId, messageId, imageBytes, caption, replyMarkup, ct))
+        {
+            await chatStorage.SaveOutgoingAsync(chatId, caption, messageId, ct);
+            return messageId;
+        }
+
+        return await SendSearchGridPhotoAsync(bot, chatId, imageBytes, caption, replyMarkup, ct);
+    }
+
+    /// <summary>Sends the search preview grid (multipart on Bale — stream upload fails there).</summary>
+    public async Task<int?> SendSearchGridPhotoAsync(
         ITelegramBotClient bot,
         long chatId,
         byte[] imageBytes,
@@ -53,11 +91,53 @@ public class MediaFileSender(
                 : await SendSearchGridViaTelegramBotAsync(bot, chatId, imageBytes, caption, replyMarkup, ct);
 
             await chatStorage.SaveOutgoingAsync(chatId, caption, sent.MessageId, ct);
-            return true;
+            return sent.MessageId;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to send search grid photo to {ChatId}", chatId);
+            return null;
+        }
+    }
+
+    private async Task<bool> TryUpdateSearchGridAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        int messageId,
+        byte[] imageBytes,
+        string caption,
+        InlineKeyboardMarkup replyMarkup,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (_useBaleApi)
+            {
+                return await baleFileSender.TryEditPhotoMessageAsync(
+                    chatId, messageId, imageBytes, "search-grid.jpg", caption, replyMarkup, ct);
+            }
+
+            await using var stream = new MemoryStream(imageBytes);
+            var media = new InputMediaPhoto(InputFile.FromStream(stream, "search-grid.jpg"))
+            {
+                Caption = caption,
+                ParseMode = ParseMode.None
+            };
+            await bot.EditMessageMedia(
+                chatId,
+                messageId,
+                media,
+                replyMarkup: replyMarkup,
+                cancellationToken: ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Failed to edit search grid message {MessageId} in chat {ChatId}",
+                messageId,
+                chatId);
             return false;
         }
     }

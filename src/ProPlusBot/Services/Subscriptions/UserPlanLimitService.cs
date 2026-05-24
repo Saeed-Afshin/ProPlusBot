@@ -5,76 +5,59 @@ using ProPlusBot.Models;
 
 namespace ProPlusBot.Services.Subscriptions;
 
-public class UserPlanLimitService(AppDbContext db)
+public class UserPlanLimitService(AppDbContext db, PlanDefinitionService planDefinitions)
 {
     public async Task<IReadOnlyList<UserLimitEditRow>> GetUserLimitRowsAsync(
         long telegramUserId,
         SubscriptionPlan effectivePlan,
         CancellationToken ct = default)
     {
-        var planLimits = await db.PlanPlatformLimits.AsNoTracking()
-            .Where(l => l.Plan == effectivePlan)
+        var plan = await planDefinitions.GetPlanAsync(effectivePlan, ct);
+        var planMb = ByteUnits.ToMegabytes(PlanExtraPackHelper.GetUnifiedMaxFileBytes(plan));
+
+        var overrides = await db.UserPlanPlatformLimits.AsNoTracking()
+            .Where(l => l.TelegramUserId == telegramUserId && l.LimitKind == QuotaLimitKind.MaxFileBytes)
             .ToListAsync(ct);
 
-        var userLimits = await db.UserPlanPlatformLimits.AsNoTracking()
-            .Where(l => l.TelegramUserId == telegramUserId)
-            .ToListAsync(ct);
+        var hasCustom = overrides.Count > 0;
+        var value = hasCustom
+            ? ByteUnits.ToMegabytes(overrides.Max(l => l.LimitValue))
+            : planMb;
 
-        var userByKey = userLimits.ToDictionary(l => (l.Platform, l.Period, l.LimitKind));
-
-        return planLimits
-            .Where(l => l.LimitKind == QuotaLimitKind.MaxFileBytes || l.Period == UsagePeriod.Monthly)
-            .Select(l =>
-            {
-                var key = (l.Platform, l.Period, l.LimitKind);
-                var hasCustom = userByKey.ContainsKey(key);
-                var value = hasCustom ? userByKey[key].LimitValue : l.LimitValue;
-                return new UserLimitEditRow(
-                    l.Platform,
-                    l.Period,
-                    l.LimitKind,
-                    PlanLimitDisplay.ToDisplayValue(l.LimitKind, value),
-                    hasCustom);
-            })
-            .OrderBy(r => r.Platform)
-            .ThenBy(r => r.LimitKind)
-            .ThenBy(r => r.Period)
-            .ToList();
+        return [new UserLimitEditRow(value, hasCustom)];
     }
 
-    public async Task SaveUserLimitRowAsync(
+    public async Task SaveUserMaxFileAsync(
         long telegramUserId,
-        MediaPlatformKind platform,
-        UsagePeriod period,
-        QuotaLimitKind limitKind,
-        decimal displayValue,
+        decimal megabytes,
         CancellationToken ct = default)
     {
-        var limitValue = ByteUnits.IsByteLimitKind(limitKind)
-            ? ByteUnits.FromMegabytes(displayValue)
-            : Math.Max(0, (long)displayValue);
+        var limitValue = ByteUnits.FromMegabytes(megabytes);
 
-        var row = await db.UserPlanPlatformLimits
-            .FirstOrDefaultAsync(l =>
-                l.TelegramUserId == telegramUserId
-                && l.Platform == platform
-                && l.Period == period
-                && l.LimitKind == limitKind, ct);
-
-        if (row is null)
+        foreach (var platform in Enum.GetValues<MediaPlatformKind>())
         {
-            row = new UserPlanPlatformLimit
+            var row = await db.UserPlanPlatformLimits
+                .FirstOrDefaultAsync(l =>
+                    l.TelegramUserId == telegramUserId
+                    && l.Platform == platform
+                    && l.LimitKind == QuotaLimitKind.MaxFileBytes, ct);
+
+            if (row is null)
             {
-                TelegramUserId = telegramUserId,
-                Platform = platform,
-                Period = period,
-                LimitKind = limitKind
-            };
-            db.UserPlanPlatformLimits.Add(row);
+                row = new UserPlanPlatformLimit
+                {
+                    TelegramUserId = telegramUserId,
+                    Platform = platform,
+                    Period = UsagePeriod.Daily,
+                    LimitKind = QuotaLimitKind.MaxFileBytes
+                };
+                db.UserPlanPlatformLimits.Add(row);
+            }
+
+            row.LimitValue = limitValue;
+            row.UpdatedAt = DateTime.UtcNow;
         }
 
-        row.LimitValue = limitValue;
-        row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 
@@ -86,43 +69,5 @@ public class UserPlanLimitService(AppDbContext db)
 
         db.UserPlanPlatformLimits.RemoveRange(rows);
         await db.SaveChangesAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<PlanPlatformLimit>> ResolveLimitsAsync(
-        long telegramUserId,
-        SubscriptionPlan plan,
-        MediaPlatformKind platform,
-        CancellationToken ct = default)
-    {
-        var planLimits = await db.PlanPlatformLimits.AsNoTracking()
-            .Where(l => l.Plan == plan && l.Platform == platform)
-            .ToListAsync(ct);
-
-        var userLimits = await db.UserPlanPlatformLimits.AsNoTracking()
-            .Where(l => l.TelegramUserId == telegramUserId && l.Platform == platform)
-            .ToListAsync(ct);
-
-        if (userLimits.Count == 0)
-            return planLimits;
-
-        var userByKey = userLimits.ToDictionary(l => (l.Period, l.LimitKind));
-        return planLimits
-            .Select(l =>
-            {
-                if (!userByKey.TryGetValue((l.Period, l.LimitKind), out var userLimit))
-                    return l;
-
-                return new PlanPlatformLimit
-                {
-                    Id = l.Id,
-                    Plan = l.Plan,
-                    Platform = l.Platform,
-                    Period = l.Period,
-                    LimitKind = l.LimitKind,
-                    LimitValue = userLimit.LimitValue,
-                    UpdatedAt = userLimit.UpdatedAt
-                };
-            })
-            .ToList();
     }
 }

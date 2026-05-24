@@ -23,10 +23,7 @@ public class PlanCatalogService(AppDbContext db, IOptions<PaymentOptions> paymen
         long? offerPriceToman,
         CancellationToken ct = default)
     {
-        var limits = await db.PlanPlatformLimits.AsNoTracking()
-            .Where(l => l.Plan == plan
-                && (l.Period == UsagePeriod.Monthly || l.LimitKind == QuotaLimitKind.MaxFileBytes))
-            .ToListAsync(ct);
+        var row = await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
 
         var sb = new StringBuilder();
         sb.AppendLine($"📦 بسته {MediaPlatformMapper.ToDisplayName(plan)}");
@@ -48,34 +45,17 @@ public class PlanCatalogService(AppDbContext db, IOptions<PaymentOptions> paymen
             sb.AppendLine("پس از پرداخت، در صورت بسته فعال بلافاصله اعمال می‌شود.");
 
         sb.AppendLine();
-
-        foreach (var platform in Enum.GetValues<MediaPlatformKind>())
-        {
-            sb.AppendLine($"▫️ {MediaPlatformMapper.ToDisplayName(platform)}");
-
-            var downloadCount = GetLimit(limits, platform, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount);
-            var downloadBytes = GetLimit(limits, platform, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes);
-            var searchCount = GetLimit(limits, platform, UsagePeriod.Monthly, QuotaLimitKind.SearchCount);
-            var maxFile = GetLimit(limits, platform, UsagePeriod.Daily, QuotaLimitKind.MaxFileBytes);
-            if (maxFile == 0)
-                maxFile = GetLimit(limits, platform, UsagePeriod.Monthly, QuotaLimitKind.MaxFileBytes);
-
-            sb.AppendLine($"  • دانلود ماهانه: {downloadCount} عدد");
-            sb.AppendLine($"  • حجم ماهانه: {ByteUnits.FormatMegabytes(downloadBytes)}");
-            sb.AppendLine($"  • جستجو ماهانه: {searchCount} عدد");
-            sb.AppendLine($"  • حداکثر هر فایل: {ByteUnits.FormatMegabytes(maxFile)}");
-            sb.AppendLine();
-        }
+        sb.AppendLine("سهمیه ماهانه (مشترک یوتیوب و پینترست):");
+        sb.AppendLine($"  • دانلود: {row.MonthlyDownloadCount} عدد");
+        sb.AppendLine($"  • حجم: {ByteUnits.FormatVolume(row.MonthlyDownloadBytes)}");
+        sb.AppendLine($"  • جستجو: {row.MonthlySearchCount} عدد");
+        if (row.MonthlyTicketLimit > 0)
+            sb.AppendLine($"  • تیکت پشتیبانی: {row.MonthlyTicketLimit} عدد");
+        sb.AppendLine();
+        sb.AppendLine($"  حداکثر هر فایل: {ByteUnits.FormatVolume(PlanExtraPackHelper.GetUnifiedMaxFileBytes(row))}");
+        if (PlanExtraPackHelper.IsPackAvailable(row))
+            sb.AppendLine($"  سهمیه اضافه: {PlanExtraPackHelper.BuildOfferText(row)}");
 
         return sb.ToString().TrimEnd();
     }
-
-    private static long GetLimit(
-        IReadOnlyList<PlanPlatformLimit> limits,
-        MediaPlatformKind platform,
-        UsagePeriod period,
-        QuotaLimitKind kind) =>
-        limits.FirstOrDefault(l => l.Platform == platform && l.Period == period && l.LimitKind == kind)
-            ?.LimitValue
-        ?? 0;
 }

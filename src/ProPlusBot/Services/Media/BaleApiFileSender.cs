@@ -57,6 +57,50 @@ public class BaleApiFileSender(
             replyMarkup,
             ct);
 
+    public async Task<bool> TryEditPhotoMessageAsync(
+        long chatId,
+        int messageId,
+        byte[] imageBytes,
+        string fileName,
+        string? caption,
+        InlineKeyboardMarkup? replyMarkup,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(chatId.ToString()), "chat_id");
+            content.Add(new StringContent(messageId.ToString()), "message_id");
+
+            var mediaJson = JsonSerializer.Serialize(new
+            {
+                type = "photo",
+                media = "attach://photo",
+                caption
+            });
+            content.Add(new StringContent(mediaJson), "media");
+
+            if (replyMarkup is not null)
+                content.Add(new StringContent(ToReplyMarkupJson(replyMarkup)), "reply_markup");
+
+            var fileContent = new ByteArrayContent(imageBytes);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+            content.Add(fileContent, "photo", fileName);
+
+            await PostBaleApiAsync("editMessageMedia", content, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Bale editMessageMedia failed for chat {ChatId} message {MessageId}",
+                chatId,
+                messageId);
+            return false;
+        }
+    }
+
     private async Task<Message> SendMultipartAsync(
         long chatId,
         string filePath,

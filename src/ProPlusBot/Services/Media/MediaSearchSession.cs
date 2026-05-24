@@ -8,4 +8,5 @@ public sealed record MediaSearchSession(
     string CallbackPrefix,
     DetectedMediaPlatform Platform,
     string? PinterestBookmark,
-    SearchGridLayout GridLayout);
+    SearchGridLayout GridLayout,
+    int? SearchGridMessageId = null);

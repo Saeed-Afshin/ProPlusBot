@@ -4,86 +4,85 @@ namespace ProPlusBot.Services.Subscriptions;
 
 internal static class SubscriptionSeedData
 {
-    public static IReadOnlyList<PlanPlatformLimit> DefaultLimits() =>
+    public static IReadOnlyList<PlanPricing> DefaultPlanDefinitions() =>
     [
-        ..DefaultDownloadAndSearchLimits(),
-        ..DefaultMaxFileLimits(),
+        Plan(SubscriptionPlan.Free,
+            price: 0,
+            downloads: 60,
+            downloadMb: 1000,
+            searches: 40,
+            tickets: 2,
+            maxFileYtMb: 25,
+            maxFilePinMb: 15,
+            extraCountPrice: 15_000,
+            extraCountPack: 5,
+            extraBytesPrice: 15_000,
+            extraBytesMb: 200),
+        Plan(SubscriptionPlan.Bronze,
+            price: 99_000,
+            downloads: 300,
+            downloadMb: 4096,
+            searches: 400,
+            tickets: 5,
+            maxFileYtMb: 40,
+            maxFilePinMb: 25,
+            extraCountPrice: 25_000,
+            extraCountPack: 10,
+            extraBytesPrice: 25_000,
+            extraBytesMb: 500),
+        Plan(SubscriptionPlan.Silver,
+            price: 199_000,
+            downloads: 800,
+            downloadMb: 10240,
+            searches: 1000,
+            tickets: 10,
+            maxFileYtMb: 49,
+            maxFilePinMb: 40,
+            extraCountPrice: 35_000,
+            extraCountPack: 15,
+            extraBytesPrice: 35_000,
+            extraBytesMb: 1024),
+        Plan(SubscriptionPlan.Golden,
+            price: 399_000,
+            downloads: 2000,
+            downloadMb: 30720,
+            searches: 4000,
+            tickets: 20,
+            maxFileYtMb: 49,
+            maxFilePinMb: 49,
+            extraCountPrice: 49_000,
+            extraCountPack: 25,
+            extraBytesPrice: 49_000,
+            extraBytesMb: 2048),
     ];
 
-    private static IEnumerable<PlanPlatformLimit> DefaultDownloadAndSearchLimits() =>
-    [
-        // Trial (Free)
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 30),
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 500 * 1024 * 1024),
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 20),
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 30),
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 500 * 1024 * 1024),
-        Limit(SubscriptionPlan.Free, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 20),
-
-        // Bronze
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 150),
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 2L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 200),
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 150),
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 2L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Bronze, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 200),
-
-        // Silver
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 400),
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 5L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 500),
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 400),
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 5L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Silver, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 500),
-
-        // Golden
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 1000),
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 15L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.YouTube, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 2000),
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadCount, 1000),
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.DownloadBytes, 15L * 1024 * 1024 * 1024),
-        Limit(SubscriptionPlan.Golden, MediaPlatformKind.Pinterest, UsagePeriod.Monthly, QuotaLimitKind.SearchCount, 2000),
-    ];
-
-    public static IEnumerable<PlanPlatformLimit> DefaultMaxFileLimits() =>
-    [
-        MaxFile(SubscriptionPlan.Free, MediaPlatformKind.YouTube, 25),
-        MaxFile(SubscriptionPlan.Free, MediaPlatformKind.Pinterest, 15),
-        MaxFile(SubscriptionPlan.Bronze, MediaPlatformKind.YouTube, 40),
-        MaxFile(SubscriptionPlan.Bronze, MediaPlatformKind.Pinterest, 25),
-        MaxFile(SubscriptionPlan.Silver, MediaPlatformKind.YouTube, 49),
-        MaxFile(SubscriptionPlan.Silver, MediaPlatformKind.Pinterest, 40),
-        MaxFile(SubscriptionPlan.Golden, MediaPlatformKind.YouTube, 49),
-        MaxFile(SubscriptionPlan.Golden, MediaPlatformKind.Pinterest, 49),
-    ];
-
-    public static IReadOnlyList<PlanPricing> DefaultPricing() =>
-    [
-        new() { Plan = SubscriptionPlan.Free, MonthlyPriceToman = 0, UpdatedAt = DateTime.UtcNow },
-        new() { Plan = SubscriptionPlan.Bronze, MonthlyPriceToman = 99_000, UpdatedAt = DateTime.UtcNow },
-        new() { Plan = SubscriptionPlan.Silver, MonthlyPriceToman = 199_000, UpdatedAt = DateTime.UtcNow },
-        new() { Plan = SubscriptionPlan.Golden, MonthlyPriceToman = 399_000, UpdatedAt = DateTime.UtcNow },
-    ];
-
-    public static IEnumerable<PlanPlatformLimit> DefaultSearchLimits() =>
-        DefaultDownloadAndSearchLimits().Where(l => l.LimitKind == QuotaLimitKind.SearchCount);
-
-    private static PlanPlatformLimit Limit(
+    private static PlanPricing Plan(
         SubscriptionPlan plan,
-        MediaPlatformKind platform,
-        UsagePeriod period,
-        QuotaLimitKind kind,
-        long value) =>
+        long price,
+        long downloads,
+        int downloadMb,
+        long searches,
+        int tickets,
+        int maxFileYtMb,
+        int maxFilePinMb,
+        long extraCountPrice,
+        int extraCountPack,
+        long extraBytesPrice,
+        int extraBytesMb) =>
         new()
         {
             Plan = plan,
-            Platform = platform,
-            Period = period,
-            LimitKind = kind,
-            LimitValue = value,
+            MonthlyPriceToman = price,
+            MonthlyDownloadCount = downloads,
+            MonthlyDownloadBytes = downloadMb * 1024L * 1024,
+            MonthlySearchCount = searches,
+            MonthlyTicketLimit = tickets,
+            MaxFileBytesYouTube = maxFileYtMb * 1024L * 1024,
+            MaxFileBytesPinterest = maxFilePinMb * 1024L * 1024,
+            ExtraDownloadCountPriceToman = extraCountPrice,
+            ExtraDownloadCountPack = extraCountPack,
+            ExtraDownloadBytesPriceToman = extraBytesPrice,
+            ExtraDownloadBytesPack = extraBytesMb * 1024L * 1024,
             UpdatedAt = DateTime.UtcNow
         };
-
-    private static PlanPlatformLimit MaxFile(SubscriptionPlan plan, MediaPlatformKind platform, int megabytes) =>
-        Limit(plan, platform, UsagePeriod.Daily, QuotaLimitKind.MaxFileBytes, megabytes * 1024L * 1024);
 }

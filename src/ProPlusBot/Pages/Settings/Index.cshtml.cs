@@ -9,7 +9,7 @@ using ProPlusBot.Services.Media;
 namespace ProPlusBot.Pages.Settings;
 
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
-public class IndexModel(BotSettingsService settingsService) : PageModel
+public class IndexModel(BotSettingsService settingsService, IConfiguration configuration) : PageModel
 {
     [BindProperty]
     public BotMode Mode { get; set; }
@@ -34,6 +34,11 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
 
     [BindProperty]
     public int SearchGridJpegQuality { get; set; } = SearchGridPresets.DefaultJpegQuality;
+
+    [BindProperty]
+    public ConversationStateBackend ConversationStateBackend { get; set; } = ConversationStateBackend.Memory;
+
+    public bool RedisConfigured { get; private set; }
 
     public IReadOnlyList<string> SearchGridPresetOptions { get; private set; } =
         SearchGridPresets.Allowed.Select(p => SearchGridPresets.Format(p.Columns, p.Rows)).ToList();
@@ -99,6 +104,7 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
             columns,
             rows,
             SearchGridJpegQuality,
+            ConversationStateBackend,
             User.GetAdminId(),
             ct);
 
@@ -120,6 +126,8 @@ public class IndexModel(BotSettingsService settingsService) : PageModel
         WebhookUrl = s.WebhookUrl;
         SearchGridPreset = SearchGridPresets.Format(s.SearchGridColumns, s.SearchGridRows);
         SearchGridJpegQuality = s.SearchGridJpegQuality;
+        ConversationStateBackend = s.ConversationStateBackend;
+        RedisConfigured = !string.IsNullOrWhiteSpace(configuration["Redis:ConnectionString"]);
 
         var cookieStatus = await settingsService.GetYouTubeCookiesStatusAsync(ct);
         YouTubeCookiesConfigured = cookieStatus.Configured;

@@ -20,5 +20,12 @@ public static class MediaConstants
     public const string CallbackFormatPage = "p";
 
     public const string CallbackNextPage = "next";
+    public const string CallbackPrevPage = "prev";
     public const string NextPageButtonText = "صفحه بعد ▶";
+    public const string PrevPageButtonText = "◀ صفحه قبل";
+
+    public const int YouTubeFormatsPerPage = 8;
+    public const int YouTubeFormatKeyboardColumns = 2;
+    /// <summary>Max formats offered across all pages (sorted by size, ascending).</summary>
+    public const int YouTubeFormatsMaxCount = 24;
 }

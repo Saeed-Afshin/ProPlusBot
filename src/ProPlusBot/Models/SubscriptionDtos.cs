@@ -2,17 +2,18 @@ using ProPlusBot.Entities;
 
 namespace ProPlusBot.Models;
 
-public record QuotaUsageDto(
-    MediaPlatformKind Platform,
+public record SharedQuotaUsageDto(
     long MonthlyDownloadCountUsed,
     long MonthlyDownloadCountLimit,
     long MonthlyBytesUsed,
     long MonthlyBytesLimit,
     long MonthlySearchUsed,
     long MonthlySearchLimit,
-    long MaxFileBytesLimit,
-    int ExtraCountRemaining,
-    long ExtraBytesRemaining);
+    int ExtraDownloadCountBonus,
+    long ExtraDownloadBytesBonus,
+    int ExtraSearchCountBonus);
+
+public record PlatformMaxFileDto(MediaPlatformKind Platform, long MaxFileBytesLimit);
 
 public record ReservedPlanDto(Guid Id, SubscriptionPlan Plan, int DurationDays, DateTime CreatedAt);
 
@@ -25,7 +26,8 @@ public record UserAccountSummaryDto(
     bool IsBanned,
     bool HasSubscriptionAccess,
     bool IsTrialActive,
-    IReadOnlyList<QuotaUsageDto> Quotas,
+    SharedQuotaUsageDto SharedQuota,
+    IReadOnlyList<PlatformMaxFileDto> PlatformMaxFiles,
     IReadOnlyList<ReservedPlanDto> ReservedPlans);
 
 public record PaymentRecordDto(
@@ -43,23 +45,26 @@ public record PaymentRecordDto(
     DateTime? CompletedAt,
     string? Note);
 
-public record PlanLimitDto(
-    int Id,
+public record PlanDefinitionDto(
     SubscriptionPlan Plan,
-    MediaPlatformKind Platform,
-    UsagePeriod Period,
-    QuotaLimitKind LimitKind,
-    long LimitValue);
+    long MonthlyPriceToman,
+    long MonthlyDownloadCount,
+    decimal MonthlyDownloadMegabytes,
+    long MonthlySearchCount,
+    int MonthlyTicketLimit,
+    decimal MaxFileMegabytes,
+    long ExtraDownloadPackPriceToman,
+    int ExtraDownloadCountPack,
+    decimal ExtraDownloadPackMegabytes);
 
-public record PlanPricingDto(SubscriptionPlan Plan, long MonthlyPriceToman);
+public record TrialSettingsDto(int DurationDays);
 
 public record BotUserAdminDto(
     long TelegramUserId,
     string? Username,
+    string? DisplayName,
     string? PhoneNumber,
     SubscriptionPlan Plan,
     DateTime? PlanExpiresAt,
     bool IsBanned,
     DateTime CreatedAt);
-
-public record TrialSettingsDto(int DurationDays);

@@ -17,6 +17,7 @@ public class BalePaymentService(
     BotSettingsService botSettingsService,
     UserAccessService userAccess,
     SubscriptionService subscriptionService,
+    QuotaService quotaService,
     AppDbContext db,
     IOptions<PaymentOptions> paymentOptions,
     ILogger<BalePaymentService> logger)
@@ -47,15 +48,16 @@ public class BalePaymentService(
             ct);
     }
 
-    public async Task SendExtraQuotaInvoiceAsync(long chatId, MediaPlatformKind platform, CancellationToken ct = default)
+    public async Task SendExtraDownloadPackInvoiceAsync(long chatId, CancellationToken ct = default)
     {
         await EnsureNotBannedAsync(chatId, ct);
-        var payment = await subscriptionService.CreateExtraQuotaPaymentAsync(chatId, platform, ct);
-        var pack = await db.ExtraQuotaPackSettings.AsNoTracking().FirstAsync(ct);
+        var payment = await subscriptionService.CreateExtraDownloadPackPaymentAsync(chatId, ct);
+        var plan = await quotaService.GetEffectivePlanAsync(chatId, ct);
+        var planRow = await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
         await SendInvoiceAsync(
             chatId,
-            $"سهمیه اضافه {MediaPlatformMapper.ToDisplayName(platform)}",
-            $"افزودن {pack.ExtraDownloadCount} دانلود و {ByteUnits.FormatMegabytes(pack.ExtraDownloadBytes)} حجم.",
+            "سهمیه اضافه",
+            PlanExtraPackHelper.BuildOfferText(planRow),
             payment,
             ct);
     }
@@ -193,8 +195,12 @@ public class BalePaymentService(
 
     private static string BuildPaymentSuccessMessage(PaymentRecord payment, PlanFulfillmentResult? fulfillment)
     {
-        if (payment.Type == PaymentType.ExtraQuota)
-            return "پرداخت موفق بود. سهمیه اضافه شما فعال شد.";
+        if (payment.Type is PaymentType.ExtraDownloadPack or PaymentType.ExtraQuota)
+            return "پرداخت موفق بود. سهمیه اضافه (تعداد و حجم) به حساب شما افزوده شد.";
+        if (payment.Type == PaymentType.ExtraDownloadCount)
+            return "پرداخت موفق بود. تعداد دانلود اضافه به سهمیه شما افزوده شد.";
+        if (payment.Type == PaymentType.ExtraDownloadBytes)
+            return "پرداخت موفق بود. حجم دانلود اضافه به سهمیه شما افزوده شد.";
 
         var planName = payment.ToPlan is not null
             ? MediaPlatformMapper.ToDisplayName(payment.ToPlan.Value)

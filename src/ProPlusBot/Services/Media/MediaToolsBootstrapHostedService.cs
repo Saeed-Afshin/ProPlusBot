@@ -19,6 +19,7 @@ public class MediaToolsBootstrapHostedService(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var toolsDir = ToolExecutableResolver.ResolveToolsDirectory(hostEnvironment, _options.ToolsDirectory);
+        logger.LogInformation("Media tools bootstrap starting (tools directory: {ToolsDir})", toolsDir);
 
         var ytDlp = await ResolveYtDlpAsync(toolsDir, cancellationToken);
         var galleryDl = await ResolveGalleryDlAsync(toolsDir, cancellationToken);
@@ -175,13 +176,25 @@ public class MediaToolsBootstrapHostedService(
             if (Directory.Exists(extractRoot))
                 Directory.Delete(extractRoot, recursive: true);
 
-            logger.LogInformation("Downloading Deno for YouTube EJS from {Url}", asset.Value.DownloadUrl);
-
             var client = httpClientFactory.CreateClient(nameof(MediaToolsBootstrapHostedService));
-            await ToolExecutableResolver.DownloadFileAsync(client, asset.Value.DownloadUrl, archivePath, ct);
+            await ToolExecutableResolver.DownloadFileAsync(
+                client, asset.Value.DownloadUrl, archivePath, "deno", logger, ct);
 
+            logger.LogInformation(
+                "Starting extract for deno: {Archive} -> {Destination}",
+                archivePath,
+                extractRoot);
             Directory.CreateDirectory(extractRoot);
-            ZipFile.ExtractToDirectory(archivePath, extractRoot);
+            try
+            {
+                await Task.Run(() => ZipFile.ExtractToDirectory(archivePath, extractRoot), ct);
+                logger.LogInformation("Extract succeeded for deno (zip)");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Extract failed for deno: {Archive} -> {Destination}", archivePath, extractRoot);
+                throw;
+            }
 
             var binary = Directory
                 .EnumerateFiles(extractRoot, asset.Value.ExecutableName, SearchOption.AllDirectories)
@@ -189,19 +202,23 @@ public class MediaToolsBootstrapHostedService(
 
             if (binary is null)
             {
-                logger.LogError("deno binary not found inside {Archive}", archivePath);
+                logger.LogError(
+                    "Install failed for deno: binary {Name} not found under {ExtractRoot}",
+                    asset.Value.ExecutableName,
+                    extractRoot);
                 return null;
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(installPath)!);
             File.Copy(binary, installPath, overwrite: true);
             ToolExecutableResolver.MakeExecutable(installPath);
+            logger.LogInformation("Installed deno at {Path} (from {Source})", installPath, binary);
 
             return await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to download Deno to {Path}", installPath);
+            logger.LogError(ex, "Failed to download or extract deno to {Path}", installPath);
             return null;
         }
         finally
@@ -266,7 +283,10 @@ public class MediaToolsBootstrapHostedService(
         {
             var configured = await ToolExecutableResolver.TryResolveDirectoryAsync(_options.FfmpegPath, ct);
             if (configured is not null)
+            {
+                logger.LogInformation("Using ffmpeg from configured FfmpegPath: {Path}", configured);
                 return configured;
+            }
 
             logger.LogWarning("Configured FfmpegPath {Path} is not usable", _options.FfmpegPath);
         }
@@ -274,12 +294,18 @@ public class MediaToolsBootstrapHostedService(
         var bundled = await ToolExecutableResolver.TryResolveDirectoryAsync(
             Path.Combine(toolsDir, "ffmpeg", "bin", FfmpegPlatformAssets.ExecutableName), ct);
         if (bundled is not null)
+        {
+            logger.LogInformation("Using bundled ffmpeg at {Path}", bundled);
             return bundled;
+        }
 
         var onPath = await ToolExecutableResolver.TryResolveDirectoryAsync(
             FfmpegPlatformAssets.ExecutableName, ct);
         if (onPath is not null)
+        {
+            logger.LogInformation("Using ffmpeg from system PATH: {Path}", onPath);
             return onPath;
+        }
 
         if (!_options.AutoDownloadFfmpeg)
             return null;
@@ -302,13 +328,14 @@ public class MediaToolsBootstrapHostedService(
             return null;
 
         var installPath = Path.Combine(toolsDir, "yt-dlp", "bin", YtDlpDownloadAssets.InstalledName);
-        logger.LogInformation("Downloading yt-dlp from {Url}", asset.Value.DownloadUrl);
 
         try
         {
             var client = httpClientFactory.CreateClient(nameof(MediaToolsBootstrapHostedService));
-            await ToolExecutableResolver.DownloadFileAsync(client, asset.Value.DownloadUrl, installPath, ct);
+            await ToolExecutableResolver.DownloadFileAsync(
+                client, asset.Value.DownloadUrl, installPath, "yt-dlp", logger, ct);
             ToolExecutableResolver.MakeExecutable(installPath);
+            logger.LogInformation("Installed yt-dlp at {Path}", installPath);
             return await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
         }
         catch (Exception ex)
@@ -324,13 +351,14 @@ public class MediaToolsBootstrapHostedService(
             return null;
 
         var installPath = Path.Combine(toolsDir, "gallery-dl", "bin", GalleryDlDownloadAssets.InstalledName);
-        logger.LogInformation("Downloading gallery-dl from {Url}", asset.Value.DownloadUrl);
 
         try
         {
             var client = httpClientFactory.CreateClient(nameof(MediaToolsBootstrapHostedService));
-            await ToolExecutableResolver.DownloadFileAsync(client, asset.Value.DownloadUrl, installPath, ct);
+            await ToolExecutableResolver.DownloadFileAsync(
+                client, asset.Value.DownloadUrl, installPath, "gallery-dl", logger, ct);
             ToolExecutableResolver.MakeExecutable(installPath);
+            logger.LogInformation("Installed gallery-dl at {Path}", installPath);
             return await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
         }
         catch (Exception ex)
@@ -354,32 +382,41 @@ public class MediaToolsBootstrapHostedService(
             if (Directory.Exists(extractRoot))
                 Directory.Delete(extractRoot, recursive: true);
 
-            logger.LogInformation("Downloading ffmpeg from {Url}", asset.DownloadUrl);
-
             var client = httpClientFactory.CreateClient(nameof(MediaToolsBootstrapHostedService));
-            await ToolExecutableResolver.DownloadFileAsync(client, asset.DownloadUrl, archivePath, ct);
+            await ToolExecutableResolver.DownloadFileAsync(
+                client, asset.DownloadUrl, archivePath, "ffmpeg", logger, ct);
 
             Directory.CreateDirectory(extractRoot);
-            await ToolExecutableResolver.ExtractArchiveAsync(archivePath, extractRoot, asset.ArchiveKind, ct);
+            await ToolExecutableResolver.ExtractArchiveAsync(
+                archivePath, extractRoot, asset.ArchiveKind, "ffmpeg", logger, ct);
 
             var binary = Directory.EnumerateFiles(extractRoot, FfmpegPlatformAssets.ExecutableName, SearchOption.AllDirectories)
                 .FirstOrDefault();
 
             if (binary is null)
             {
-                logger.LogError("ffmpeg binary not found after extracting {Archive}", archivePath);
+                var fileCount = Directory.Exists(extractRoot)
+                    ? Directory.EnumerateFiles(extractRoot, "*", SearchOption.AllDirectories).Count()
+                    : 0;
+                logger.LogError(
+                    "Install failed for ffmpeg: {Name} not found under {ExtractRoot} ({FileCount} files extracted from {Archive})",
+                    FfmpegPlatformAssets.ExecutableName,
+                    extractRoot,
+                    fileCount,
+                    archivePath);
                 return null;
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(installPath)!);
             File.Copy(binary, installPath, overwrite: true);
             ToolExecutableResolver.MakeExecutable(installPath);
+            logger.LogInformation("Installed ffmpeg at {Path} (from {Source})", installPath, binary);
 
             return await ToolExecutableResolver.TryResolveDirectoryAsync(installPath, ct);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(
+            logger.LogError(
                 ex,
                 "Failed to download or extract ffmpeg (install ffmpeg on the server or set MediaDownload:FfmpegPath)");
             return null;

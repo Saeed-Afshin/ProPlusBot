@@ -21,6 +21,8 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+RUN mkdir -p /app/data/dataprotection-keys /app/publish/tools
+
 ENV MediaDownload__YtDlpPath=/usr/local/bin/yt-dlp
 ENV MediaDownload__GalleryDlPath=/usr/local/bin/gallery-dl
 ENV MediaDownload__AutoDownloadYtDlp=false

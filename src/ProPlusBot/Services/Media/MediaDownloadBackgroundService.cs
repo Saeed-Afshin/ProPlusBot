@@ -1,3 +1,4 @@
+using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
 
@@ -10,13 +11,21 @@ public class MediaDownloadBackgroundService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var job in queue.ReadAllAsync(stoppingToken))
+        await RecoverPendingJobsAsync(stoppingToken);
+
+        await foreach (var jobId in queue.ReadAllAsync(stoppingToken))
         {
             try
             {
                 using var scope = scopeFactory.CreateScope();
+                var jobService = scope.ServiceProvider.GetRequiredService<MediaDownloadJobService>();
                 var processor = scope.ServiceProvider.GetRequiredService<MediaDownloadProcessor>();
-                await processor.ProcessAsync(job, stoppingToken);
+
+                var workItem = await jobService.TryMarkProcessingAsync(jobId, stoppingToken);
+                if (workItem is null)
+                    continue;
+
+                await processor.ProcessAsync(workItem, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -24,24 +33,67 @@ public class MediaDownloadBackgroundService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Media download job failed for chat {ChatId}", job.ChatId);
-                try
-                {
-                    using var logScope = scopeFactory.CreateScope();
-                    var errorLog = logScope.ServiceProvider.GetRequiredService<ErrorLogService>();
-                    await errorLog.LogExceptionAsync(
-                        job.ChatId,
-                        "خطا در صف دانلود رسانه",
-                        ex,
-                        nameof(MediaDownloadBackgroundService),
-                        ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
-                        stoppingToken);
-                }
-                catch (Exception logEx)
-                {
-                    logger.LogWarning(logEx, "Failed to persist error log for chat {ChatId}", job.ChatId);
-                }
+                logger.LogError(ex, "Media download job {JobId} failed", jobId);
+                await HandleJobFailureAsync(jobId, ex, stoppingToken);
             }
+        }
+    }
+
+    private async Task RecoverPendingJobsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var jobService = scope.ServiceProvider.GetRequiredService<MediaDownloadJobService>();
+            var pendingIds = await jobService.RecoverPendingJobIdsAsync(ct);
+            foreach (var id in pendingIds)
+                await queue.SignalAsync(id, ct);
+
+            if (pendingIds.Count > 0)
+            {
+                logger.LogInformation(
+                    "Recovered {Count} pending media download job(s) after startup",
+                    pendingIds.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to recover pending media download jobs");
+        }
+    }
+
+    private async Task HandleJobFailureAsync(Guid jobId, Exception ex, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var jobService = scope.ServiceProvider.GetRequiredService<MediaDownloadJobService>();
+            var interactionLog = scope.ServiceProvider.GetRequiredService<UserInteractionLogService>();
+            var errorLog = scope.ServiceProvider.GetRequiredService<ErrorLogService>();
+
+            var detail = await jobService.GetDetailAsync(jobId, ct);
+            await jobService.MarkFailedAsync(
+                jobId,
+                "خطای داخلی هنگام پردازش دانلود",
+                ex.ToString(),
+                ct);
+            await interactionLog.UpdateByJobIdAsync(
+                jobId,
+                UserInteractionStatus.Failed,
+                "خطای داخلی هنگام پردازش دانلود",
+                ct);
+
+            await errorLog.LogExceptionAsync(
+                detail?.TelegramUserId,
+                "خطا در صف دانلود رسانه",
+                ex,
+                nameof(MediaDownloadBackgroundService),
+                detail is null ? null : ErrorLogServices.FromDetectedMediaPlatform(detail.Platform),
+                ct);
+        }
+        catch (Exception inner)
+        {
+            logger.LogWarning(inner, "Failed to persist failure for job {JobId}", jobId);
         }
     }
 }
@@ -54,22 +106,32 @@ public class MediaDownloadProcessor(
     MediaFileSender fileSender,
     QuotaService quotaService,
     UserAccessService userAccess,
+    MediaDownloadJobService jobService,
+    UserInteractionLogService interactionLog,
     ErrorLogService errorLog,
     ILogger<MediaDownloadProcessor> logger)
 {
-    public async Task ProcessAsync(MediaDownloadJob job, CancellationToken ct)
+    public async Task ProcessAsync(MediaDownloadWorkItem job, CancellationToken ct)
     {
         var bot = clientFactory.CreateClient();
         var tempDir = Path.Combine(Path.GetTempPath(), "ProPlusBot", "media", Guid.NewGuid().ToString("N"));
+        var mediaJob = new MediaDownloadJob(
+            job.ChatId,
+            job.SourceUrl,
+            job.Platform,
+            job.Source,
+            job.YouTubeFormatId);
 
         try
         {
             await tools.WaitReadyAsync(ct);
             if (!tools.CanDownload(job.Platform))
             {
+                const string summary = "ابزار دانلود روی سرور در دسترس نیست";
+                await FailJobAsync(job.Id, summary, $"URL: {job.SourceUrl}{Environment.NewLine}Platform: {job.Platform}", ct);
                 await errorLog.LogAsync(
                     job.ChatId,
-                    "ابزار دانلود روی سرور در دسترس نیست",
+                    summary,
                     $"URL: {job.SourceUrl}{Environment.NewLine}Platform: {job.Platform}",
                     nameof(MediaDownloadProcessor),
                     ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
@@ -81,14 +143,21 @@ public class MediaDownloadProcessor(
 
             var download = job.Platform switch
             {
-                DetectedMediaPlatform.YouTube => await ytDlp.DownloadAsync(job.SourceUrl, tempDir, job.YouTubeFormatId, ct),
+                DetectedMediaPlatform.YouTube => await ytDlp.DownloadAsync(
+                    job.SourceUrl, tempDir, job.YouTubeFormatId, ct),
                 DetectedMediaPlatform.Pinterest => await DownloadPinterestAsync(job.SourceUrl, tempDir, ct),
                 _ => MediaToolDownloadResult.Failed($"Unsupported platform: {job.Platform}")
             };
 
             if (!download.Success)
             {
+                var userMessage = download.ErrorDetail?.Contains(
+                    "Requested format is not available",
+                    StringComparison.OrdinalIgnoreCase) == true
+                    ? "کیفیت انتخاب‌شده دیگر در دسترس نیست. لینک را دوباره بفرستید و کیفیت دیگری انتخاب کنید."
+                    : "دانلود انجام نشد. لطفاً لینک را بررسی کنید یا بعداً دوباره تلاش کنید.";
                 var detail = $"URL: {job.SourceUrl}{Environment.NewLine}{Environment.NewLine}{download.ErrorDetail}";
+                await FailJobAsync(job.Id, userMessage, detail, ct);
                 await errorLog.LogAsync(
                     job.ChatId,
                     "دانلود رسانه انجام نشد",
@@ -96,38 +165,53 @@ public class MediaDownloadProcessor(
                     nameof(MediaDownloadProcessor),
                     ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
                     ct);
-                var userMessage = download.ErrorDetail?.Contains("Requested format is not available", StringComparison.OrdinalIgnoreCase) == true
-                    ? "کیفیت انتخاب‌شده دیگر در دسترس نیست. لینک را دوباره بفرستید و کیفیت دیگری انتخاب کنید."
-                    : "دانلود انجام نشد. لطفاً لینک را بررسی کنید یا بعداً دوباره تلاش کنید.";
                 await fileSender.SendTextAsync(bot, job.ChatId, userMessage, ct);
                 return;
             }
 
             var filePath = download.FilePath!;
-
             var fileSize = new FileInfo(filePath).Length;
             if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
             {
                 var platformKind = MediaPlatformMapper.ToKind(job.Platform);
-                var (allowed, message) = await quotaService.ValidateFileSizeAsync(job.ChatId, platformKind, fileSize, ct);
+                var (allowed, message) = await quotaService.ValidateFileSizeAsync(
+                    job.ChatId, platformKind, fileSize, ct);
                 if (!allowed)
                 {
-                    await fileSender.SendTextAsync(bot, job.ChatId, message ?? "فایل برای بسته شما بزرگ است.", ct);
+                    var summary = message ?? "فایل برای بسته شما بزرگ است.";
+                    await FailJobAsync(job.Id, summary, $"File size: {fileSize}", ct);
+                    await fileSender.SendTextAsync(bot, job.ChatId, summary, ct);
                     return;
                 }
             }
 
             var sent = await fileSender.SendFileAsync(
                 bot, job.ChatId, filePath, ErrorLogServices.FromDetectedMediaPlatform(job.Platform), ct);
-            if (sent && !await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
+            if (!sent)
+            {
+                await FailJobAsync(job.Id, "ارسال فایل به کاربر ناموفق بود", null, ct);
+                await fileSender.SendTextAsync(bot, job.ChatId, "ارسال فایل ناموفق بود.", ct);
+                return;
+            }
+
+            if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
             {
                 var platform = MediaPlatformMapper.ToKind(job.Platform);
                 await quotaService.RecordDownloadAsync(job.ChatId, platform, fileSize, ct);
             }
+
+            var successSummary = $"فایل ارسال شد ({ByteUnits.FormatMegabytes(fileSize)})";
+            await jobService.MarkCompletedAsync(job.Id, fileSize, successSummary, ct);
+            await interactionLog.UpdateByJobIdAsync(
+                job.Id,
+                UserInteractionStatus.Success,
+                successSummary,
+                ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing media job for {ChatId}", job.ChatId);
+            logger.LogError(ex, "Error processing media job {JobId} for {ChatId}", job.Id, job.ChatId);
+            await FailJobAsync(job.Id, "خطایی در هنگام دانلود رخ داد.", ex.ToString(), ct);
             await errorLog.LogExceptionAsync(
                 job.ChatId,
                 "خطا در پردازش دانلود رسانه",
@@ -135,13 +219,18 @@ public class MediaDownloadProcessor(
                 nameof(MediaDownloadProcessor),
                 ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
                 ct);
-            await fileSender.SendTextAsync(bot, job.ChatId,
-                "خطایی در هنگام دانلود رخ داد.", ct);
+            await fileSender.SendTextAsync(bot, job.ChatId, "خطایی در هنگام دانلود رخ داد.", ct);
         }
         finally
         {
             TryDeleteDirectory(tempDir);
         }
+    }
+
+    private async Task FailJobAsync(Guid jobId, string summary, string? errorDetail, CancellationToken ct)
+    {
+        await jobService.MarkFailedAsync(jobId, summary, errorDetail, ct);
+        await interactionLog.UpdateByJobIdAsync(jobId, UserInteractionStatus.Failed, summary, ct);
     }
 
     private async Task<MediaToolDownloadResult> DownloadPinterestAsync(string url, string tempDir, CancellationToken ct)

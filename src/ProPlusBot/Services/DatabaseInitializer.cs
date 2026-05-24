@@ -25,78 +25,42 @@ public class DatabaseInitializer(AppDbContext db, TrialSettingsService trialSett
                 SearchGridColumns = 3,
                 SearchGridRows = 3,
                 SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
+                ConversationStateBackend = ConversationStateBackend.Memory,
                 UpdatedAt = DateTime.UtcNow
             });
         }
 
         await trialSettings.GetAsync(ct);
-
-        await RemoveObsoleteDailyLimitsAsync(ct);
-
-        if (!await db.PlanPlatformLimits.AnyAsync(ct))
-            db.PlanPlatformLimits.AddRange(SubscriptionSeedData.DefaultLimits());
-        else
-        {
-            await EnsureSearchLimitsAsync(ct);
-            await EnsureMaxFileLimitsAsync(ct);
-        }
-
-        if (!await db.PlanPricings.AnyAsync(ct))
-            db.PlanPricings.AddRange(SubscriptionSeedData.DefaultPricing());
-
-        if (!await db.ExtraQuotaPackSettings.AnyAsync(ct))
-        {
-            db.ExtraQuotaPackSettings.Add(new ExtraQuotaPackSettings
-            {
-                Id = 1,
-                PriceToman = 29_000,
-                ExtraDownloadCount = 5,
-                ExtraDownloadBytes = 200 * 1024 * 1024,
-                UpdatedAt = DateTime.UtcNow
-            });
-        }
-
+        await EnsurePlanDefinitionsAsync(ct);
         await AssignTrialExpiryToUsersWithoutAsync(ct);
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task RemoveObsoleteDailyLimitsAsync(CancellationToken ct)
+    private async Task EnsurePlanDefinitionsAsync(CancellationToken ct)
     {
-        await db.PlanPlatformLimits
-            .Where(l => l.Period == UsagePeriod.Daily && l.LimitKind != QuotaLimitKind.MaxFileBytes)
-            .ExecuteDeleteAsync(ct);
-
-        await db.UserPlanPlatformLimits
-            .Where(l => l.Period == UsagePeriod.Daily && l.LimitKind != QuotaLimitKind.MaxFileBytes)
-            .ExecuteDeleteAsync(ct);
-    }
-
-    private async Task EnsureSearchLimitsAsync(CancellationToken ct)
-    {
-        foreach (var seed in SubscriptionSeedData.DefaultSearchLimits())
+        foreach (var seed in SubscriptionSeedData.DefaultPlanDefinitions())
         {
-            var exists = await db.PlanPlatformLimits.AnyAsync(l =>
-                l.Plan == seed.Plan
-                && l.Platform == seed.Platform
-                && l.Period == seed.Period
-                && l.LimitKind == QuotaLimitKind.SearchCount, ct);
+            var row = await db.PlanPricings.FirstOrDefaultAsync(p => p.Plan == seed.Plan, ct);
+            if (row is null)
+            {
+                db.PlanPricings.Add(seed);
+                continue;
+            }
 
-            if (!exists)
-                db.PlanPlatformLimits.Add(seed);
-        }
-    }
-
-    private async Task EnsureMaxFileLimitsAsync(CancellationToken ct)
-    {
-        foreach (var seed in SubscriptionSeedData.DefaultMaxFileLimits())
-        {
-            var exists = await db.PlanPlatformLimits.AnyAsync(l =>
-                l.Plan == seed.Plan
-                && l.Platform == seed.Platform
-                && l.LimitKind == QuotaLimitKind.MaxFileBytes, ct);
-
-            if (!exists)
-                db.PlanPlatformLimits.Add(seed);
+            if (row.MonthlyDownloadCount == 0 && row.MonthlyDownloadBytes == 0 && row.MonthlySearchCount == 0)
+            {
+                row.MonthlyDownloadCount = seed.MonthlyDownloadCount;
+                row.MonthlyDownloadBytes = seed.MonthlyDownloadBytes;
+                row.MonthlySearchCount = seed.MonthlySearchCount;
+                row.MonthlyTicketLimit = seed.MonthlyTicketLimit;
+                row.MaxFileBytesYouTube = seed.MaxFileBytesYouTube;
+                row.MaxFileBytesPinterest = seed.MaxFileBytesPinterest;
+                row.ExtraDownloadCountPriceToman = seed.ExtraDownloadCountPriceToman;
+                row.ExtraDownloadCountPack = seed.ExtraDownloadCountPack;
+                row.ExtraDownloadBytesPriceToman = seed.ExtraDownloadBytesPriceToman;
+                row.ExtraDownloadBytesPack = seed.ExtraDownloadBytesPack;
+                row.UpdatedAt = DateTime.UtcNow;
+            }
         }
     }
 

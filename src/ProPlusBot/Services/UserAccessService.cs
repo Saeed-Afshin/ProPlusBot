@@ -176,6 +176,40 @@ public class UserAccessService(
             ResizeKeyboard = true
         };
 
-    public string OnboardingMessage() =>
-        $"برای استفاده از ربات، شماره تماس را فقط با دکمه «{SharePhoneButtonText}» ارسال کنید (ارسال متنی پذیرفته نیست)، سپس در کانال {_botOptions.RequiredChannelUsername} عضو شوید.";
+    public string OnboardingMessage()
+    {
+        var joinUrl = GetChannelJoinUrl();
+        var channelStep = joinUrl is not null
+            ? $"سپس از لینک کانال عضو شوید:\n{joinUrl}"
+            : $"سپس در کانال {_botOptions.RequiredChannelUsername} عضو شوید.";
+        return $"برای استفاده از ربات، شماره تماس را فقط با دکمه «{SharePhoneButtonText}» ارسال کنید (ارسال متنی پذیرفته نیست)، {channelStep}";
+    }
+
+    public string ChannelJoinPromptMessage()
+    {
+        var joinUrl = GetChannelJoinUrl();
+        if (joinUrl is not null)
+        {
+            return $"برای ادامه در کانال عضو شوید:\n{joinUrl}\n\nبعد از عضویت «{RestartButtonText}» را بزنید.";
+        }
+
+        return $"لطفاً در کانال {_botOptions.RequiredChannelUsername} عضو شوید و «{RestartButtonText}» را بزنید.";
+    }
+
+    public string? GetChannelJoinUrl() => NormalizeJoinUrl(_botOptions.RequiredChannelJoinUrl);
+
+    private static string? NormalizeJoinUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        url = url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            url = "https://" + url;
+        }
+
+        return url;
+    }
 }

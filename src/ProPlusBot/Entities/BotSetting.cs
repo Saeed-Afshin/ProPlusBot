@@ -11,6 +11,7 @@ public class BotSetting
     public int SearchGridColumns { get; set; } = 3;
     public int SearchGridRows { get; set; } = 3;
     public int SearchGridJpegQuality { get; set; } = 85;
+    public ConversationStateBackend ConversationStateBackend { get; set; } = ConversationStateBackend.Memory;
     public string? WebhookUrl { get; set; }
     /// <summary>Netscape-format YouTube cookies (set from admin panel).</summary>
     public string? YouTubeCookiesContent { get; set; }

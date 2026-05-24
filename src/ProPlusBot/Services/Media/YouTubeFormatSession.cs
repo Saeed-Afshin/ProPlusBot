@@ -5,9 +5,11 @@ public sealed record YouTubeFormatSession(
     IReadOnlyList<YouTubeFormatOption> Formats,
     MediaDownloadSource Source,
     long MaxFileBytesForPlan,
-    int Page = 0)
+    int Page = 0,
+    long? IncomingChatMessageId = null,
+    int? FormatMenuMessageId = null)
 {
-    public const int FormatsPerPage = 8;
+    public const int FormatsPerPage = MediaConstants.YouTubeFormatsPerPage;
     public int PageCount => Math.Max(1, (Formats.Count + FormatsPerPage - 1) / FormatsPerPage);
 
     public IReadOnlyList<YouTubeFormatOption> GetPageFormats()

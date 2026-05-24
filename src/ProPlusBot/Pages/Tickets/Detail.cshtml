@@ -1,0 +1,85 @@
+@page "{id:guid}"
+@using ProPlusBot.Entities
+@using ProPlusBot.Services.Subscriptions
+@using ProPlusBot.Services.Tickets
+@model ProPlusBot.Pages.Tickets.DetailModel
+@{
+    ViewData["Title"] = "جزئیات تیکت";
+    var ticket = Model.Ticket!;
+}
+
+<h2 class="mb-4">🎫 جزئیات تیکت</h2>
+<p><a asp-page="/Tickets/Index">بازگشت به فهرست</a></p>
+
+@if (Model.SuccessMessage is not null)
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<dl class="row mb-4">
+    <dt class="col-sm-3">کاربر</dt>
+    <dd class="col-sm-9">
+        @ticket.TelegramUserId
+        @if (!string.IsNullOrWhiteSpace(ticket.Username))
+        {
+            <span dir="ltr" class="text-muted">(@@@ticket.Username)</span>
+        }
+        <a class="btn btn-sm btn-outline-secondary ms-2" asp-page="/Chats/Index" asp-route-userId="@ticket.TelegramUserId">گفتگو</a>
+    </dd>
+    <dt class="col-sm-3">وضعیت</dt>
+    <dd class="col-sm-9">
+        <span class="badge @TicketStatusRules.ToBadgeClass(ticket.Status)">@TicketStatusRules.ToDisplayName(ticket.Status)</span>
+    </dd>
+    <dt class="col-sm-3">ایجاد</dt>
+    <dd class="col-sm-9" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(ticket.CreatedAt)</dd>
+    @if (ticket.LastAdminReplyAt is not null)
+    {
+        <dt class="col-sm-3">آخرین پاسخ پشتیبانی</dt>
+        <dd class="col-sm-9" dir="ltr">
+            @PersianDateTimeHelper.FormatTehranDisplay(ticket.LastAdminReplyAt.Value)
+            @if (!string.IsNullOrWhiteSpace(ticket.LastAdminDisplayName))
+            {
+                <span class="text-muted">— @ticket.LastAdminDisplayName</span>
+            }
+        </dd>
+    }
+</dl>
+
+<div class="mb-4">
+    @foreach (var msg in ticket.Messages)
+    {
+        var isUser = msg.Sender == SupportTicketSender.User;
+        <div class="card mb-2 @(isUser ? "border-primary" : "border-success")">
+            <div class="card-header py-2 d-flex justify-content-between">
+                <span>@(isUser ? "کاربر" : "پشتیبانی" + (msg.AdminDisplayName is not null ? $" ({msg.AdminDisplayName})" : ""))</span>
+                <span class="small text-muted" dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(msg.CreatedAt)</span>
+            </div>
+            <div class="card-body py-2" style="white-space: pre-wrap;">@msg.Body</div>
+        </div>
+    }
+</div>
+
+@if (TicketStatusRules.IsOpen(ticket.Status))
+{
+    <div class="card mb-4">
+        <div class="card-header">پاسخ پشتیبانی</div>
+        <div class="card-body">
+            <form method="post" asp-page-handler="Reply">
+                <input type="hidden" asp-for="TicketId" />
+                <div class="mb-3">
+                    <textarea asp-for="ReplyText" class="form-control" rows="4" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">ارسال پاسخ به کاربر</button>
+            </form>
+        </div>
+    </div>
+
+    <form method="post" asp-page-handler="Close" onsubmit="return confirm('تیکت بسته شود؟');">
+        <input type="hidden" asp-for="TicketId" />
+        <button type="submit" class="btn btn-outline-danger">بستن تیکت</button>
+    </form>
+}

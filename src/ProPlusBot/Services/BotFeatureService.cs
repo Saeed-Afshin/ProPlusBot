@@ -2,6 +2,7 @@ using ProPlusBot.Entities;
 using ProPlusBot.Models;
 using ProPlusBot.Services.Media;
 using ProPlusBot.Services.Subscriptions;
+using ProPlusBot.Services.Tickets;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProPlusBot.Services;
@@ -71,9 +72,10 @@ public class BotFeatureService(
         ]);
         rows.Add(
         [
-            new KeyboardButton(HelpButtonText),
-            new KeyboardButton(UserAccessService.RestartButtonText)
+            new KeyboardButton(TicketConstants.SupportButtonText),
+            new KeyboardButton(HelpButtonText)
         ]);
+        rows.Add([new KeyboardButton(UserAccessService.RestartButtonText)]);
 
         return new ReplyKeyboardMarkup(rows) { ResizeKeyboard = true };
     }
@@ -94,7 +96,11 @@ public class BotFeatureService(
                 "در این بخش می‌توانید اطلاعات بسته فعال، سهمیه باقی‌مانده و پرداخت‌های اخیرتان را ببینید."),
             HelpParagraph(
                 SubscriptionBotHandler.PlansButtonText,
-                "از اینجا می‌توانید بسته جدید تهیه کنید، بسته فعلی را ارتقا دهید یا در صورت نیاز سهمیه اضافه بخرید.")
+                "از اینجا می‌توانید بسته جدید تهیه کنید، بسته فعلی را ارتقا دهید یا در صورت نیاز سهمیه اضافه بخرید."),
+            HelpParagraph(
+                TicketConstants.SupportButtonText,
+                "برای تماس با پشتیبانی این دکمه را بزنید و پیام خود را بنویسید. می‌توانید به پاسخ پشتیبانی پاسخ دهید. " +
+                "تعداد تیکت‌های مجاز در هر ماه بسته به طرح شماست. پس از پاسخ پشتیبانی، اگر ۵ روز پاسخی ندهید تیکت به‌صورت خودکار بسته می‌شود.")
         };
 
         if (youtube)
@@ -162,20 +168,8 @@ public class BotFeatureService(
         return $"بسته فعال شما: {planLabel}\nاعتبار تا {expiryDate} ساعت {expiryTime}";
     }
 
-    public async Task<string> BuildReadyMessageAsync(long telegramUserId, CancellationToken ct = default)
-    {
-        var youtube = await CanUseYouTubeAsync(telegramUserId, ct);
-        var pinterest = await CanUsePinterestAsync(telegramUserId, ct);
-
-        return (youtube, pinterest) switch
-        {
-            (true, true) =>
-                $"همه شرایط تکمیل است. لینک یوتیوب یا پینترست بفرستید، یا از دکمه‌های «{MediaConstants.YouTubeSearchButtonText}» و «{MediaConstants.PinterestSearchButtonText}» استفاده کنید.",
-            (true, false) =>
-                $"همه شرایط تکمیل است. لینک یوتیوب بفرستید یا از دکمه «{MediaConstants.YouTubeSearchButtonText}» استفاده کنید.",
-            (false, true) =>
-                $"همه شرایط تکمیل است. لینک پینترست بفرستید یا از دکمه «{MediaConstants.PinterestSearchButtonText}» استفاده کنید.",
-            _ => $"همه شرایط تکمیل است. از «{SubscriptionBotHandler.AccountButtonText}» و «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید."
-        };
-    }
+    public Task<string> BuildReadyMessageAsync(long telegramUserId, CancellationToken ct = default) =>
+        Task.FromResult(
+            $"لینک یوتیوب یا پینترست بفرستید تا دانلود شود، یا از منو «{MediaConstants.YouTubeSearchButtonText}» و «{MediaConstants.PinterestSearchButtonText}» جستجو کنید.\n\n" +
+            $"همچنین می‌توانید برای اطلاع از وضعیت حساب خود از «{SubscriptionBotHandler.AccountButtonText}» و برای خرید بسته جدید از «{SubscriptionBotHandler.PlansButtonText}» استفاده کنید.");
 }

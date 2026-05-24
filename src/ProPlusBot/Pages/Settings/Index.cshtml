@@ -73,6 +73,27 @@
         <label asp-for="PinterestEnabled" class="form-check-label">پینترست (جستجو و دانلود لینک)</label>
     </div>
     <hr class="my-4" />
+    <h2 class="h5 mb-3">ذخیره وضعیت گفتگو (جستجو / کیفیت)</h2>
+    <div class="mb-3">
+        <label class="form-label" asp-for="ConversationStateBackend">محل نگهداری session</label>
+        <select asp-for="ConversationStateBackend" class="form-select"
+                asp-items="Html.GetEnumSelectList<ConversationStateBackend>()"></select>
+        <div class="form-text">
+            @if (Model.ConversationStateBackend == ConversationStateBackend.Redis && !Model.RedisConfigured)
+            {
+                <span class="text-danger">Redis در appsettings تنظیم نشده — تا زمان تنظیم <code>Redis:ConnectionString</code>، از حافظه استفاده می‌شود.</span>
+            }
+            else if (Model.ConversationStateBackend == ConversationStateBackend.Redis)
+            {
+                <span>وضعیت جستجو و انتخاب کیفیت بین ری‌استارت‌ها و چند نمونهٔ برنامه مشترک است (نیاز به Redis).</span>
+            }
+            else
+            {
+                <span>وضعیت فقط در حافظهٔ همین پردازش نگه‌داری می‌شود (پس از ری‌استارت از بین می‌رود).</span>
+            }
+        </div>
+    </div>
+    <hr class="my-4" />
     <h2 class="h5 mb-3">نمایش نتایج جستجو</h2>
     <div class="mb-3">
         <label class="form-label" asp-for="SearchGridPreset">اندازه گرید (ستون × سطر)</label>

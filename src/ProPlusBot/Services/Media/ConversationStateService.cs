@@ -1,58 +1,60 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using ProPlusBot.Configuration;
+using ProPlusBot.Services.Media.State;
 
 namespace ProPlusBot.Services.Media;
 
-public class ConversationStateService(IMemoryCache cache)
+public class ConversationStateService(
+    ConversationStateStoreProvider storeProvider,
+    IOptions<ConversationStateOptions> options)
 {
     private static string StateKey(long userId) => $"media:state:{userId}";
     private static string SessionKey(long userId) => $"media:session:{userId}";
     private static string FormatSessionKey(long userId) => $"media:formats:{userId}";
 
-    private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
+    private TimeSpan Ttl => TimeSpan.FromMinutes(Math.Clamp(options.Value.SessionTtlMinutes, 5, 1440));
+
+    private IConversationStateStore Store => storeProvider.GetStore();
 
     public MediaConversationState GetState(long userId) =>
-        cache.TryGetValue(StateKey(userId), out MediaConversationState state)
-            ? state
-            : MediaConversationState.Idle;
+        Store.Get<ConversationStateEnvelope>(StateKey(userId))?.State ?? MediaConversationState.Idle;
 
     public void SetState(long userId, MediaConversationState state) =>
-        cache.Set(StateKey(userId), state, Ttl);
+        Store.Set(StateKey(userId), new ConversationStateEnvelope(state), Ttl);
 
     public void Clear(long userId)
     {
-        cache.Remove(StateKey(userId));
-        cache.Remove(SessionKey(userId));
+        Store.Remove(StateKey(userId));
+        Store.Remove(SessionKey(userId));
         ClearFormatSession(userId);
     }
 
     public void ClearFormatSession(long userId) =>
-        cache.Remove(FormatSessionKey(userId));
+        Store.Remove(FormatSessionKey(userId));
 
     public void SetFormatSession(long userId, YouTubeFormatSession session) =>
-        cache.Set(FormatSessionKey(userId), session, Ttl);
+        Store.Set(FormatSessionKey(userId), session, Ttl);
 
     public YouTubeFormatSession? GetFormatSession(long userId) =>
-        cache.TryGetValue(FormatSessionKey(userId), out YouTubeFormatSession? session)
-            ? session
-            : null;
+        Store.Get<YouTubeFormatSession>(FormatSessionKey(userId));
 
     public void RefreshFormatSession(long userId)
     {
-        if (cache.TryGetValue(FormatSessionKey(userId), out YouTubeFormatSession? session) && session is not null)
-            cache.Set(FormatSessionKey(userId), session, Ttl);
+        var session = GetFormatSession(userId);
+        if (session is not null)
+            SetFormatSession(userId, session);
     }
 
     public void SetSearchSession(long userId, MediaSearchSession session) =>
-        cache.Set(SessionKey(userId), session, Ttl);
+        Store.Set(SessionKey(userId), session, Ttl);
 
     public MediaSearchSession? GetSearchSession(long userId) =>
-        cache.TryGetValue(SessionKey(userId), out MediaSearchSession? session)
-            ? session
-            : null;
+        Store.Get<MediaSearchSession>(SessionKey(userId));
 
     public void RefreshSearchSession(long userId)
     {
-        if (cache.TryGetValue(SessionKey(userId), out MediaSearchSession? session) && session is not null)
-            cache.Set(SessionKey(userId), session, Ttl);
+        var session = GetSearchSession(userId);
+        if (session is not null)
+            SetSearchSession(userId, session);
     }
 }

@@ -1,0 +1,124 @@
+@page
+@model ProPlusBot.Pages.Users.BulkQuotaModel
+@using ProPlusBot.Pages.Users
+@using ProPlusBot.Models
+@using ProPlusBot.Pages.Messages
+@{
+    ViewData["Title"] = "سهمیه و تاریخ گروهی";
+}
+
+<h2 class="mb-4">سهمیه و تاریخ بسته (گروهی)</h2>
+
+<p class="mb-3">
+    <a class="btn btn-outline-secondary btn-sm" asp-page="/Users/Index">بازگشت به کاربران</a>
+</p>
+
+@if (Model.SuccessMessage is not null) { <div class="alert alert-success">@Model.SuccessMessage</div> }
+@if (Model.ErrorMessage is not null) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+@if (Model.Target == AdminUserTargetKind.Selected && Model.SelectedUserCount > 0)
+{
+    <div class="alert alert-info">@Model.SelectedUserCount کاربر از صفحه کاربران انتخاب شده است.</div>
+}
+
+<div class="card mb-4">
+    <div class="card-body small text-muted">
+        <strong>تمدید (Extend):</strong> مقدار دقیق به تاریخ یا سهمیه اضافه می‌شود.<br />
+        <strong>بازنشانی (Reset):</strong> مصرف فعلی پاک نمی‌شود؛ سقف مؤثر طوری تنظیم می‌شود که
+        <em>باقی‌مانده</em> برابر سقف بسته شود (مثلاً ۱۴ دانلود مصرف‌شده از ۲۰ → ۲۰ دانلود دیگر مجاز، نه صفر کردن ۱۴).
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Apply" class="card" id="bulkQuotaForm">
+    <div class="card-body">
+        <h5 class="card-title mb-3">مخاطبان</h5>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetSingle" value="@AdminUserTargetKind.Single" />
+                <label class="form-check-label" for="targetSingle">یک کاربر</label>
+            </div>
+            <div class="ms-4 mt-2">
+                <input asp-for="SingleUserId" class="form-control" placeholder="شناسه تلگرام" dir="ltr" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetAll" value="@AdminUserTargetKind.All" />
+                <label class="form-check-label" for="targetAll">همه کاربران</label>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" asp-for="Target" id="targetSelected" value="@AdminUserTargetKind.Selected" />
+                <label class="form-check-label" for="targetSelected">انتخابی</label>
+            </div>
+            <div class="ms-4 mt-2">
+                <textarea asp-for="SelectedUserIds" class="form-control font-monospace" rows="3" dir="ltr"></textarea>
+            </div>
+        </div>
+
+        <hr />
+
+        <div class="mb-3">
+            <label asp-for="Action" class="form-label">عملیات</label>
+            <select asp-for="Action" class="form-select" id="bulkAction">
+                @foreach (AdminBulkQuotaAction a in Enum.GetValues<AdminBulkQuotaAction>())
+                {
+                    <option value="@a">@BulkQuotaUi.ActionLabel(a)</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3" id="valueGroup">
+            <label asp-for="Value" class="form-label">مقدار</label>
+            <input asp-for="Value" class="form-control" type="number" min="0" step="any" id="bulkValue" />
+            <div class="form-text" id="valueHint"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn">اعمال</button>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+(function () {
+  const hints = {
+    ExtendPlanDays: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ExtendPlanDays))),
+    ResetPlanExpiry: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ResetPlanExpiry))),
+    ExtendDownloadCount: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ExtendDownloadCount))),
+    ResetDownloadCount: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ResetDownloadCount))),
+    ExtendDownloadMegabytes: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ExtendDownloadMegabytes))),
+    ResetDownloadVolume: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ResetDownloadVolume))),
+    ExtendSearchCount: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ExtendSearchCount))),
+    ResetSearchCount: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(BulkQuotaUi.ValueHint(AdminBulkQuotaAction.ResetSearchCount)))
+  };
+  const noValue = new Set([
+    'ResetPlanExpiry', 'ResetDownloadCount', 'ResetDownloadVolume', 'ResetSearchCount'
+  ]);
+
+  const actionEl = document.getElementById('bulkAction');
+  const valueGroup = document.getElementById('valueGroup');
+  const valueHint = document.getElementById('valueHint');
+  const form = document.getElementById('bulkQuotaForm');
+  const targetAll = document.getElementById('targetAll');
+
+  function sync() {
+    const action = actionEl.value;
+    const needs = !noValue.has(action);
+    valueGroup.style.display = needs ? '' : 'none';
+    valueHint.textContent = hints[action] || '';
+  }
+
+  actionEl.addEventListener('change', sync);
+  sync();
+
+  form.addEventListener('submit', function (e) {
+    if (targetAll.checked && !confirm('این عملیات روی همه کاربران اعمال می‌شود. ادامه؟')) {
+      e.preventDefault();
+    }
+  });
+})();
+</script>
+}

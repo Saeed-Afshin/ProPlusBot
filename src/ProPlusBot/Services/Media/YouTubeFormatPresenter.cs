@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using ProPlusBot.Services.Subscriptions;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -9,27 +8,12 @@ internal static class YouTubeFormatPresenter
 {
     public static string BuildMessage(YouTubeFormatSession session)
     {
-        var pageFormats = session.GetPageFormats();
         var sb = new StringBuilder();
-
-        sb.AppendLine("کیفیت‌های موجود:");
+        sb.AppendLine("کیفیت را انتخاب کنید:");
         if (session.MaxFileBytesForPlan > 0 && session.MaxFileBytesForPlan < long.MaxValue / 2)
-            sb.AppendLine($"حداکثر حجم مجاز بسته شما: {ByteUnits.FormatMegabytes(session.MaxFileBytesForPlan)}");
-        sb.AppendLine();
-
-        for (var i = 0; i < pageFormats.Count; i++)
-        {
-            var globalIndex = session.ToGlobalIndex(i);
-            var f = pageFormats[i];
-            var over = f.ExceedsLimit(session.MaxFileBytesForPlan);
-            var prefix = over ? "⚠️ " : "";
-            sb.AppendLine($"{globalIndex + 1}. {prefix}{f.Label} • {f.Extension} • {f.SizeDisplay}");
-        }
-
+            sb.AppendLine($"حداکثر حجم مجاز بسته: {ByteUnits.FormatVolume(session.MaxFileBytesForPlan)}");
         if (session.PageCount > 1)
-            sb.AppendLine().Append($"صفحه {session.Page + 1} از {session.PageCount}");
-
-        sb.AppendLine().Append("یک شماره را انتخاب کنید:");
+            sb.AppendLine($"صفحه {session.Page + 1} از {session.PageCount} — کوچک‌ترین حجم اول");
         return sb.ToString().TrimEnd();
     }
 
@@ -37,17 +21,17 @@ internal static class YouTubeFormatPresenter
     {
         var pageFormats = session.GetPageFormats();
         var rows = new List<InlineKeyboardButton[]>();
+        var columns = MediaConstants.YouTubeFormatKeyboardColumns;
 
-        for (var i = 0; i < pageFormats.Count; i += 2)
+        for (var i = 0; i < pageFormats.Count; i += columns)
         {
             var row = new List<InlineKeyboardButton>();
-            for (var j = i; j < Math.Min(i + 2, pageFormats.Count); j++)
+            for (var j = i; j < Math.Min(i + columns, pageFormats.Count); j++)
             {
                 var globalIndex = session.ToGlobalIndex(j);
                 var f = pageFormats[j];
-                var label = $"{globalIndex + 1} • {Truncate(f.Label, 12)}";
                 row.Add(InlineKeyboardButton.WithCallbackData(
-                    label,
+                    BuildButtonLabel(f),
                     $"{MediaConstants.CallbackYouTubeFormatPrefix}{globalIndex}"));
             }
 
@@ -67,7 +51,7 @@ internal static class YouTubeFormatPresenter
             if (session.Page < session.PageCount - 1)
             {
                 nav.Add(InlineKeyboardButton.WithCallbackData(
-                    "بعدی ▶",
+                    MediaConstants.NextPageButtonText,
                     $"{MediaConstants.CallbackYouTubeFormatPrefix}{MediaConstants.CallbackFormatPage}{session.Page + 1}"));
             }
 
@@ -76,6 +60,12 @@ internal static class YouTubeFormatPresenter
         }
 
         return new InlineKeyboardMarkup(rows);
+    }
+
+    public static string BuildButtonLabel(YouTubeFormatOption format)
+    {
+        var text = $"{format.Label} • {format.Extension} • {format.SizeDisplay}";
+        return Truncate(text, 64);
     }
 
     private static string Truncate(string value, int maxChars) =>

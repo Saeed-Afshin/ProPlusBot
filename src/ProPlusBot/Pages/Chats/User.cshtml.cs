@@ -8,10 +8,11 @@ using ProPlusBot.Services;
 namespace ProPlusBot.Pages.Chats;
 
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
-public class UserModel(ChatLogAdminService chatLogs) : PageModel
+public class UserModel(ChatLogAdminService chatLogs, UserInteractionLogService interactionLog) : PageModel
 {
     public ChatUserHeaderDto? ChatUser { get; set; }
     public List<ChatMessageDto> Messages { get; set; } = [];
+    public List<UserInteractionListItemDto> Outcomes { get; set; } = [];
 
     [BindProperty(SupportsGet = true)]
     public long UserId { get; set; }
@@ -40,6 +41,7 @@ public class UserModel(ChatLogAdminService chatLogs) : PageModel
         PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
 
         Messages = await chatLogs.ListMessagesAsync(UserId, PageNumber, PageSize, ct);
+        Outcomes = await interactionLog.ListAsync(UserId, status: null, take: 100, ct: ct);
         return Page();
     }
 }

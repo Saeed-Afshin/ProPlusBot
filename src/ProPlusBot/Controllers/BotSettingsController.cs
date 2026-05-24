@@ -25,6 +25,7 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             s.SearchGridColumns,
             s.SearchGridRows,
             s.SearchGridJpegQuality,
+            s.ConversationStateBackend,
             s.WebhookUrl,
             s.UpdatedAt));
     }
@@ -46,6 +47,7 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             request.SearchGridColumns,
             request.SearchGridRows,
             request.SearchGridJpegQuality,
+            request.ConversationStateBackend,
             User.GetAdminId(),
             ct);
 
@@ -58,6 +60,7 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             s.SearchGridColumns,
             s.SearchGridRows,
             s.SearchGridJpegQuality,
+            s.ConversationStateBackend,
             s.WebhookUrl,
             s.UpdatedAt));
     }

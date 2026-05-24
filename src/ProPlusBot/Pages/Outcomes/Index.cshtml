@@ -1,0 +1,79 @@
+@page
+@model ProPlusBot.Pages.Outcomes.IndexModel
+@{
+    ViewData["Title"] = "نتایج تعامل";
+}
+
+<h2 class="mb-4">نتایج پیام‌های کاربران</h2>
+
+<form method="get" class="row g-2 mb-4 align-items-end">
+    <div class="col-auto">
+        <label class="form-label" for="status">وضعیت</label>
+        <select class="form-select" id="status" name="status" asp-for="StatusFilter">
+            <option value="">همه</option>
+            <option value="@UserInteractionStatus.Info">@MediaJobDisplay.ToInteractionStatusName(UserInteractionStatus.Info)</option>
+            <option value="@UserInteractionStatus.Pending">@MediaJobDisplay.ToInteractionStatusName(UserInteractionStatus.Pending)</option>
+            <option value="@UserInteractionStatus.Success">@MediaJobDisplay.ToInteractionStatusName(UserInteractionStatus.Success)</option>
+            <option value="@UserInteractionStatus.Failed">@MediaJobDisplay.ToInteractionStatusName(UserInteractionStatus.Failed)</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="userId">شناسه کاربر</label>
+        <input class="form-control" id="userId" name="userId" type="number" asp-for="UserIdFilter" dir="ltr" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">فیلتر</button>
+        <a class="btn btn-outline-secondary" asp-page="/Outcomes/Index">پاک کردن</a>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead>
+        <tr>
+            <th>تاریخ</th>
+            <th>کاربر</th>
+            <th>نوع</th>
+            <th>ورودی</th>
+            <th>نتیجه</th>
+            <th>وضعیت</th>
+            <th>پیوند</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model.Outcomes)
+        {
+            <tr>
+                <td dir="ltr" class="text-nowrap small">@PersianDateTimeHelper.FormatTehranDisplay(item.CreatedAt)</td>
+                <td dir="ltr">
+                    <div>@item.TelegramUserId</div>
+                    @if (!string.IsNullOrWhiteSpace(item.Username))
+                    {
+                        <div class="text-muted small">@item.Username</div>
+                    }
+                    <a class="small" asp-page="/Chats/User" asp-route-userId="@item.TelegramUserId">گفتگو</a>
+                </td>
+                <td>@MediaJobDisplay.ToKindName(item.Kind)</td>
+                <td class="small text-break" dir="ltr">@item.InputSummary</td>
+                <td class="small">@(item.ResultSummary ?? "—")</td>
+                <td>@MediaJobDisplay.ToInteractionStatusName(item.Status)</td>
+                <td class="text-nowrap small">
+                    @if (item.MediaDownloadJobId is not null)
+                    {
+                        <a asp-page="/MediaJobs/Detail" asp-route-id="@item.MediaDownloadJobId">دانلود</a>
+                    }
+                    else
+                    {
+                        <span>—</span>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.Outcomes.Count == 0)
+{
+    <p class="text-muted">موردی یافت نشد.</p>
+}

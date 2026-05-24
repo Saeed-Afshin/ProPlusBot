@@ -762,10 +762,10 @@ public class YtDlpService(
         parsed
             .GroupBy(f => f.FormatId)
             .Select(g => g.First())
-            .OrderBy(f => f.IsAudioOnly)
-            .ThenByDescending(f => f.Height ?? 0)
-            .ThenByDescending(f => f.SizeBytes ?? 0)
-            .Take(24)
+            .OrderBy(f => f.SizeBytes is null or <= 0 ? long.MaxValue : f.SizeBytes.Value)
+            .ThenBy(f => f.Height ?? int.MaxValue)
+            .ThenBy(f => f.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(MediaConstants.YouTubeFormatsMaxCount)
             .ToList();
 
     private static string? ExtractJsonPayload(string stdout)
