@@ -7,12 +7,12 @@
 <h2 class="mb-4">تاریخچه پرداخت‌ها</h2>
 
 <div class="table-responsive">
-    <table class="table table-striped table-bordered">
+    <table class="table table-striped table-bordered align-middle">
         <thead>
         <tr>
             <th>تاریخ</th>
-            <th>کاربر</th>
-            <th>شماره</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>نوع</th>
             <th>مبلغ (تومان)</th>
             <th>وضعیت</th>
@@ -24,13 +24,20 @@
         <tbody>
         @foreach (var p in Model.Payments)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(p.Username)
+                ? "—"
+                : (p.Username.StartsWith('@') ? p.Username : "@" + p.Username);
+            var displayName = string.IsNullOrWhiteSpace(p.DisplayName) ? "—" : p.DisplayName;
             <tr>
                 <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(p.CreatedAt)</td>
-                <td>
-                    <div>@(string.IsNullOrWhiteSpace(p.UserDisplayName) ? "—" : p.UserDisplayName)</div>
-                    <div dir="ltr" class="text-muted small font-monospace">@p.TelegramUserId</div>
+                <td dir="ltr">
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@p.TelegramUserId</div>
                 </td>
-                <td dir="ltr">@(p.PhoneNumber ?? "—")</td>
+                <td>
+                    <div dir="ltr">@(p.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
+                </td>
                 <td>@(p.Type == PaymentType.PlanUpgrade ? "ارتقای بسته" : p.Type == PaymentType.PlanPurchase ? "خرید بسته" : "سهمیه اضافه")</td>
                 <td>@p.AmountToman.ToString("N0")</td>
                 <td>@(p.Status switch { PaymentStatus.Pending => "در انتظار", PaymentStatus.Completed => "موفق", PaymentStatus.Failed => "ناموفق", PaymentStatus.Cancelled => "لغو", _ => p.Status.ToString() })</td>

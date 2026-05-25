@@ -19,9 +19,8 @@
     <table class="table table-striped table-bordered align-middle">
         <thead>
         <tr>
-            <th>شناسه</th>
-            <th>کاربر</th>
-            <th>شماره</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>پیام‌ها</th>
             <th>آخرین پیام</th>
             <th></th>
@@ -30,13 +29,12 @@
         <tbody>
         @foreach (var c in Model.Conversations)
         {
-            var displayName = !string.IsNullOrWhiteSpace(c.Username)
-                ? "@" + c.Username
-                : string.Join(" ", new[] { c.FirstName, c.LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
-            if (string.IsNullOrWhiteSpace(displayName))
-            {
-                displayName = "—";
-            }
+            var usernameDisplay = string.IsNullOrWhiteSpace(c.Username)
+                ? "—"
+                : (c.Username.StartsWith('@') ? c.Username : "@" + c.Username);
+            var displayName = string.IsNullOrWhiteSpace(c.FirstName)
+                ? "—"
+                : (c.FirstName + (c.LastName != null ? " " + c.LastName : "")).Trim();
 
             var preview = c.LastMessagePreview;
             if (!string.IsNullOrEmpty(preview) && preview.Length > 80)
@@ -45,9 +43,14 @@
             }
 
             <tr>
-                <td dir="ltr">@c.TelegramUserId</td>
-                <td>@displayName</td>
-                <td dir="ltr">@(c.PhoneNumber ?? "—")</td>
+                <td dir="ltr">
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@c.TelegramUserId</div>
+                </td>
+                <td>
+                    <div dir="ltr">@(c.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
+                </td>
                 <td>@c.MessageCount</td>
                 <td>
                     <div dir="ltr" class="small text-muted">@PersianDateTimeHelper.FormatTehranDisplay(c.LastMessageAt)</div>

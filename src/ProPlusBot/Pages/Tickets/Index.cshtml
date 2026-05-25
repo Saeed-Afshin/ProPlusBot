@@ -37,7 +37,8 @@
     <table class="table table-striped table-hover align-middle">
         <thead class="table-dark">
         <tr>
-            <th>کاربر</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>وضعیت</th>
             <th>آخرین به‌روزرسانی</th>
             <th>آخرین پاسخ</th>
@@ -48,17 +49,18 @@
         <tbody>
         @foreach (var t in Model.Tickets)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(t.Username)
+                ? "—"
+                : (t.Username.StartsWith('@') ? t.Username : "@" + t.Username);
+            var displayName = string.IsNullOrWhiteSpace(t.DisplayName) ? "—" : t.DisplayName;
             <tr>
+                <td dir="ltr">
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@t.TelegramUserId</div>
+                </td>
                 <td>
-                    <div>@t.TelegramUserId</div>
-                    @if (!string.IsNullOrWhiteSpace(t.Username))
-                    {
-                        <div class="small text-muted" dir="ltr">@@@t.Username</div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(t.PhoneNumber))
-                    {
-                        <div class="small" dir="ltr">@t.PhoneNumber</div>
-                    }
+                    <div dir="ltr">@(t.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
                 </td>
                 <td>
                     <span class="badge @TicketStatusRules.ToBadgeClass(t.Status)">@TicketStatusRules.ToDisplayName(t.Status)</span>

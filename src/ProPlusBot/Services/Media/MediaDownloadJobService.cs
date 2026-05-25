@@ -120,6 +120,9 @@ public class MediaDownloadJobService(AppDbContext db)
                 j.Id,
                 j.TelegramUserId,
                 j.User.Username,
+                string.IsNullOrWhiteSpace(j.User.FirstName)
+                    ? null
+                    : (j.User.FirstName + (j.User.LastName != null ? " " + j.User.LastName : "")).Trim(),
                 j.User.PhoneNumber,
                 j.Platform,
                 j.Source,
@@ -138,6 +141,9 @@ public class MediaDownloadJobService(AppDbContext db)
                 j.Id,
                 j.TelegramUserId,
                 j.User.Username,
+                string.IsNullOrWhiteSpace(j.User.FirstName)
+                    ? null
+                    : (j.User.FirstName + (j.User.LastName != null ? " " + j.User.LastName : "")).Trim(),
                 j.User.PhoneNumber,
                 j.Platform,
                 j.Source,

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
+using ProPlusBot.Services;
 
 namespace ProPlusBot.Services.Tickets;
 
@@ -53,6 +54,7 @@ public class TicketAdminService(AppDbContext db)
                 t.Id,
                 t.TelegramUserId,
                 t.User.Username,
+                BotUserDisplay.ComposeDisplayName(t.User.FirstName, t.User.LastName),
                 t.User.PhoneNumber,
                 t.Status,
                 t.CreatedAt,
@@ -90,6 +92,7 @@ public class TicketAdminService(AppDbContext db)
             ticket.Id,
             ticket.TelegramUserId,
             ticket.User.Username,
+            BotUserDisplay.ComposeDisplayName(ticket.User.FirstName, ticket.User.LastName),
             ticket.User.PhoneNumber,
             ticket.Status,
             ticket.CreatedAt,

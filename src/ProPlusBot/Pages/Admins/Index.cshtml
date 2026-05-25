@@ -40,12 +40,11 @@
     </form>
 </div>
 
-<table class="table table-striped">
+<table class="table table-striped align-middle">
     <thead>
     <tr>
-        <th>نام</th>
-        <th>موبایل</th>
-        <th>شناسه</th>
+        <th>کاربر (بله)</th>
+        <th>تماس / نام</th>
         <th>نقش</th>
         <th>فعال</th>
         <th></th>
@@ -54,10 +53,16 @@
     <tbody>
     @foreach (var admin in Model.Admins)
     {
+        var displayName = string.IsNullOrWhiteSpace(admin.DisplayName) ? "—" : admin.DisplayName;
         <tr>
-            <td>@admin.DisplayName</td>
-            <td>@admin.PhoneNumber</td>
-            <td>@admin.TelegramUserId</td>
+            <td dir="ltr">
+                <div>—</div>
+                <div class="font-monospace text-muted small">@admin.TelegramUserId</div>
+            </td>
+            <td>
+                <div dir="ltr">@(admin.PhoneNumber ?? "—")</div>
+                <div class="text-muted small">@displayName</div>
+            </td>
             <td>@admin.Role</td>
             <td>@(admin.IsActive ? "بله" : "خیر")</td>
             <td>

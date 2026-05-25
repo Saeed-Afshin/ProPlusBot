@@ -73,6 +73,10 @@ public class UserInteractionLogService(AppDbContext db)
                 x.Id,
                 x.TelegramUserId,
                 x.User.Username,
+                string.IsNullOrWhiteSpace(x.User.FirstName)
+                    ? null
+                    : (x.User.FirstName + (x.User.LastName != null ? " " + x.User.LastName : "")).Trim(),
+                x.User.PhoneNumber,
                 x.IncomingChatMessageId,
                 x.MediaDownloadJobId,
                 x.Kind,

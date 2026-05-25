@@ -32,7 +32,8 @@
         <thead>
         <tr>
             <th>تاریخ</th>
-            <th>کاربر</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>پلتفرم</th>
             <th>منبع</th>
             <th>لینک</th>
@@ -44,11 +45,19 @@
         <tbody>
         @foreach (var job in Model.Jobs)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(job.Username)
+                ? "—"
+                : (job.Username.StartsWith('@') ? job.Username : "@" + job.Username);
+            var displayName = string.IsNullOrWhiteSpace(job.DisplayName) ? "—" : job.DisplayName;
             <tr>
                 <td dir="ltr" class="text-nowrap small">@PersianDateTimeHelper.FormatTehranDisplay(job.CreatedAt)</td>
                 <td dir="ltr">
-                    <div>@job.TelegramUserId</div>
-                    <div class="text-muted small">@(job.Username is not null ? "@" + job.Username : job.PhoneNumber ?? "—")</div>
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@job.TelegramUserId</div>
+                </td>
+                <td>
+                    <div dir="ltr">@(job.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
                 </td>
                 <td>@MediaJobDisplay.ToPlatformName(job.Platform)</td>
                 <td>@MediaJobDisplay.ToSourceName(job.Source)</td>

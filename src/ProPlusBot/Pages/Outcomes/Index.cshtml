@@ -32,7 +32,8 @@
         <thead>
         <tr>
             <th>تاریخ</th>
-            <th>کاربر</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>نوع</th>
             <th>ورودی</th>
             <th>نتیجه</th>
@@ -43,15 +44,19 @@
         <tbody>
         @foreach (var item in Model.Outcomes)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(item.Username)
+                ? "—"
+                : (item.Username.StartsWith('@') ? item.Username : "@" + item.Username);
+            var displayName = string.IsNullOrWhiteSpace(item.DisplayName) ? "—" : item.DisplayName;
             <tr>
                 <td dir="ltr" class="text-nowrap small">@PersianDateTimeHelper.FormatTehranDisplay(item.CreatedAt)</td>
                 <td dir="ltr">
-                    <div>@item.TelegramUserId</div>
-                    @if (!string.IsNullOrWhiteSpace(item.Username))
-                    {
-                        <div class="text-muted small">@item.Username</div>
-                    }
-                    <a class="small" asp-page="/Chats/User" asp-route-userId="@item.TelegramUserId">گفتگو</a>
+                    <div>@usernameDisplay</div>
+                    <div class="font-monospace text-muted small">@item.TelegramUserId</div>
+                </td>
+                <td>
+                    <div dir="ltr">@(item.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
                 </td>
                 <td>@MediaJobDisplay.ToKindName(item.Kind)</td>
                 <td class="small text-break" dir="ltr">@item.InputSummary</td>
@@ -61,11 +66,9 @@
                     @if (item.MediaDownloadJobId is not null)
                     {
                         <a asp-page="/MediaJobs/Detail" asp-route-id="@item.MediaDownloadJobId">دانلود</a>
+                        <span class="mx-1">·</span>
                     }
-                    else
-                    {
-                        <span>—</span>
-                    }
+                    <a asp-page="/Chats/User" asp-route-userId="@item.TelegramUserId">گفتگو</a>
                 </td>
             </tr>
         }

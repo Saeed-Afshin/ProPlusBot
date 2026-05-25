@@ -14,11 +14,10 @@ public class SubscriptionAdminService(AppDbContext db)
             .Select(p => new PaymentRecordDto(
                 p.Id,
                 p.TelegramUserId,
-                !string.IsNullOrWhiteSpace(p.User.Username)
-                    ? p.User.Username
-                    : string.IsNullOrWhiteSpace(p.User.FirstName)
-                        ? null
-                        : (p.User.FirstName + (p.User.LastName != null ? " " + p.User.LastName : "")).Trim(),
+                p.User.Username,
+                string.IsNullOrWhiteSpace(p.User.FirstName)
+                    ? null
+                    : (p.User.FirstName + (p.User.LastName != null ? " " + p.User.LastName : "")).Trim(),
                 p.User.PhoneNumber,
                 p.Type,
                 p.Status,

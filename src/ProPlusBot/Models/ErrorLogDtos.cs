@@ -3,6 +3,8 @@ namespace ProPlusBot.Models;
 public record ErrorLogListItemDto(
     Guid Id,
     long? TelegramUserId,
+    string? Username,
+    string? DisplayName,
     string? PhoneNumber,
     string Title,
     string? Service,

@@ -11,7 +11,8 @@
         <thead>
         <tr>
             <th>تاریخ</th>
-            <th>کاربر</th>
+            <th>کاربر (بله)</th>
+            <th>تماس / نام</th>
             <th>سرویس</th>
             <th>عنوان خطا</th>
             <th></th>
@@ -20,11 +21,27 @@
         <tbody>
         @foreach (var item in Model.ErrorLogs)
         {
+            var usernameDisplay = string.IsNullOrWhiteSpace(item.Username)
+                ? "—"
+                : (item.Username.StartsWith('@') ? item.Username : "@" + item.Username);
+            var displayName = string.IsNullOrWhiteSpace(item.DisplayName) ? "—" : item.DisplayName;
             <tr>
                 <td dir="ltr">@PersianDateTimeHelper.FormatTehranDisplay(item.CreatedAt)</td>
                 <td dir="ltr">
-                    <div>@(item.TelegramUserId?.ToString() ?? "—")</div>
-                    <div class="text-muted small">@(item.PhoneNumber ?? "—")</div>
+                    @if (item.TelegramUserId is null)
+                    {
+                        <div>—</div>
+                        <div class="font-monospace text-muted small">—</div>
+                    }
+                    else
+                    {
+                        <div>@usernameDisplay</div>
+                        <div class="font-monospace text-muted small">@item.TelegramUserId</div>
+                    }
+                </td>
+                <td>
+                    <div dir="ltr">@(item.PhoneNumber ?? "—")</div>
+                    <div class="text-muted small">@displayName</div>
                 </td>
                 <td>@ErrorLogServices.ToDisplayName(item.Service)</td>
                 <td>@item.Title</td>
