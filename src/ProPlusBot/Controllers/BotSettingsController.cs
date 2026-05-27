@@ -26,6 +26,9 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             s.SearchGridRows,
             s.SearchGridJpegQuality,
             s.ConversationStateBackend,
+            s.UploadFallbackEnabled,
+            s.UploadFallbackMinBytes,
+            s.UploadFallbackExpiryHours,
             s.WebhookUrl,
             s.UpdatedAt));
     }
@@ -48,6 +51,9 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             request.SearchGridRows,
             request.SearchGridJpegQuality,
             request.ConversationStateBackend,
+            request.UploadFallbackEnabled,
+            request.UploadFallbackMinBytes,
+            request.UploadFallbackExpiryHours,
             User.GetAdminId(),
             ct);
 
@@ -61,6 +67,9 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             s.SearchGridRows,
             s.SearchGridJpegQuality,
             s.ConversationStateBackend,
+            s.UploadFallbackEnabled,
+            s.UploadFallbackMinBytes,
+            s.UploadFallbackExpiryHours,
             s.WebhookUrl,
             s.UpdatedAt));
     }

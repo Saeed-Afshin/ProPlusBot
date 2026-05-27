@@ -1,6 +1,7 @@
 using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
+using Telegram.Bot;
 
 namespace ProPlusBot.Services.Media;
 
@@ -104,6 +105,8 @@ public class MediaDownloadProcessor(
     YtDlpService ytDlp,
     GalleryDlService galleryDl,
     MediaFileSender fileSender,
+    BotSettingsService botSettings,
+    FallbackUploadService fallbackUploads,
     QuotaService quotaService,
     UserAccessService userAccess,
     MediaDownloadJobService jobService,
@@ -124,6 +127,9 @@ public class MediaDownloadProcessor(
 
         try
         {
+            if (await TryDeliverCachedFallbackAsync(bot, job, ct))
+                return;
+
             await tools.WaitReadyAsync(ct);
             if (!tools.CanDownload(job.Platform))
             {
@@ -185,23 +191,31 @@ public class MediaDownloadProcessor(
                 }
             }
 
-            var sent = await fileSender.SendFileAsync(
-                bot, job.ChatId, filePath, ErrorLogServices.FromDetectedMediaPlatform(job.Platform), ct);
-            if (!sent)
+            var delivery = await fileSender.DeliverFileAsync(
+                bot,
+                job.ChatId,
+                filePath,
+                job.SourceUrl,
+                job.Platform,
+                job.YouTubeFormatId,
+                ErrorLogServices.FromDetectedMediaPlatform(job.Platform),
+                ct);
+            if (!delivery.Success)
             {
                 await FailJobAsync(job.Id, "ارسال فایل به کاربر ناموفق بود", null, ct);
-                await fileSender.SendTextAsync(bot, job.ChatId, "ارسال فایل ناموفق بود.", ct);
                 return;
             }
 
             if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
             {
                 var platform = MediaPlatformMapper.ToKind(job.Platform);
-                await quotaService.RecordDownloadAsync(job.ChatId, platform, fileSize, ct);
+                await quotaService.RecordDownloadAsync(job.ChatId, platform, delivery.FileSizeBytes, ct);
             }
 
-            var successSummary = $"فایل ارسال شد ({ByteUnits.FormatMegabytes(fileSize)})";
-            await jobService.MarkCompletedAsync(job.Id, fileSize, successSummary, ct);
+            var successSummary = delivery.Method == MediaDeliveryMethod.FallbackLink
+                ? $"لینک دانلود ارسال شد ({ByteUnits.FormatMegabytes(delivery.FileSizeBytes)})"
+                : $"فایل ارسال شد ({ByteUnits.FormatMegabytes(delivery.FileSizeBytes)})";
+            await jobService.MarkCompletedAsync(job.Id, delivery.FileSizeBytes, successSummary, ct);
             await interactionLog.UpdateByJobIdAsync(
                 job.Id,
                 UserInteractionStatus.Success,
@@ -225,6 +239,35 @@ public class MediaDownloadProcessor(
         {
             TryDeleteDirectory(tempDir);
         }
+    }
+
+    private async Task<bool> TryDeliverCachedFallbackAsync(
+        ITelegramBotClient bot,
+        MediaDownloadWorkItem job,
+        CancellationToken ct)
+    {
+        var settings = await botSettings.GetAsync(ct);
+        if (!settings.UploadFallbackEnabled)
+            return false;
+
+        var contentKey = FallbackUploadContentKey.Compute(job.SourceUrl, job.Platform, job.YouTubeFormatId);
+        var cached = await fallbackUploads.FindActiveByContentKeyAsync(contentKey, ct);
+        if (cached is null)
+            return false;
+
+        await fallbackUploads.RenewExpiryAsync(cached.Id, settings.UploadFallbackExpiryHours, ct);
+        await fileSender.SendFallbackLinkAsync(bot, job.ChatId, cached.PublicUrl, cached.FileSizeBytes, ct);
+
+        if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
+        {
+            var platform = MediaPlatformMapper.ToKind(job.Platform);
+            await quotaService.RecordDownloadAsync(job.ChatId, platform, cached.FileSizeBytes, ct);
+        }
+
+        var summary = $"لینک دانلود ارسال شد ({ByteUnits.FormatMegabytes(cached.FileSizeBytes)})";
+        await jobService.MarkCompletedAsync(job.Id, cached.FileSizeBytes, summary, ct);
+        await interactionLog.UpdateByJobIdAsync(job.Id, UserInteractionStatus.Success, summary, ct);
+        return true;
     }
 
     private async Task FailJobAsync(Guid jobId, string summary, string? errorDetail, CancellationToken ct)

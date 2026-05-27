@@ -34,6 +34,9 @@ public class BotSettingsService(
             SearchGridRows = 3,
             SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
             ConversationStateBackend = ConversationStateBackend.Memory,
+            UploadFallbackEnabled = false,
+            UploadFallbackMinBytes = UploadFallbackPresets.DefaultMinBytes,
+            UploadFallbackExpiryHours = UploadFallbackPresets.DefaultExpiryHours,
             UpdatedAt = DateTime.UtcNow
         };
         db.BotSettings.Add(settings);
@@ -53,6 +56,9 @@ public class BotSettingsService(
         int? searchGridRows,
         int? searchGridJpegQuality,
         ConversationStateBackend? conversationStateBackend,
+        bool? uploadFallbackEnabled,
+        long? uploadFallbackMinBytes,
+        int? uploadFallbackExpiryHours,
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
@@ -89,6 +95,15 @@ public class BotSettingsService(
 
         if (conversationStateBackend.HasValue)
             settings.ConversationStateBackend = conversationStateBackend.Value;
+
+        if (uploadFallbackEnabled.HasValue)
+            settings.UploadFallbackEnabled = uploadFallbackEnabled.Value;
+
+        if (uploadFallbackMinBytes.HasValue)
+            settings.UploadFallbackMinBytes = UploadFallbackPresets.NormalizeMinBytes(uploadFallbackMinBytes.Value);
+
+        if (uploadFallbackExpiryHours.HasValue)
+            settings.UploadFallbackExpiryHours = UploadFallbackPresets.NormalizeExpiryHours(uploadFallbackExpiryHours.Value);
 
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;
@@ -181,6 +196,7 @@ public class BotSettingsService(
         settings.SearchGridColumns = cols;
         settings.SearchGridRows = rows;
         settings.SearchGridJpegQuality = SearchGridPresets.NormalizeJpegQuality(settings.SearchGridJpegQuality);
+        settings.UploadFallbackMinBytes = UploadFallbackPresets.NormalizeMinBytes(settings.UploadFallbackMinBytes);
         return settings;
     }
 }

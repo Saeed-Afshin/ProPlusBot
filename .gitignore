@@ -10,3 +10,7 @@ appsettings.*.local.json
 tools/
 scripts/youtube-cookies.txt
 scripts/youtube-cookies.b64.txt
+
+/.cloud/
+.cloud/
+/.cloud

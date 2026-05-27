@@ -23,6 +23,7 @@ builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(Paym
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection(RedisOptions.SectionName));
 builder.Services.Configure<ConversationStateOptions>(builder.Configuration.GetSection(ConversationStateOptions.SectionName));
+builder.Services.Configure<ArvanCloudStorageOptions>(builder.Configuration.GetSection(ArvanCloudStorageOptions.SectionName));
 builder.Services.Configure<AppDataProtectionOptions>(builder.Configuration.GetSection(AppDataProtectionOptions.SectionName));
 
 var dataProtectionOptions = builder.Configuration
@@ -187,6 +188,9 @@ builder.Services.AddHttpClient<PinterestSearchService>((_, client) =>
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 });
 builder.Services.AddScoped<MediaFileSender>();
+builder.Services.AddScoped<FallbackUploadService>();
+builder.Services.AddSingleton<ArvanCloudStorageService>();
+builder.Services.AddHostedService<UploadFallbackCleanupHostedService>();
 builder.Services.AddHostedService<MediaDownloadBackgroundService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<AdminManagementService>();

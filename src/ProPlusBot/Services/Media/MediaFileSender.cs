@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using ProPlusBot.Configuration;
 using ProPlusBot.Services;
+using ProPlusBot.Services.Subscriptions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -12,6 +13,9 @@ public class MediaFileSender(
     ChatStorageService chatStorage,
     ErrorLogService errorLog,
     BaleApiFileSender baleFileSender,
+    BotSettingsService botSettings,
+    FallbackUploadService fallbackUploads,
+    ArvanCloudStorageService arvanStorage,
     IOptions<MediaDownloadOptions> options,
     IOptions<BotOptions> botOptions,
     ILogger<MediaFileSender> logger)
@@ -159,25 +163,84 @@ public class MediaFileSender(
             cancellationToken: ct);
     }
 
-    public async Task<bool> SendFileAsync(
+    public async Task<MediaDeliveryResult> DeliverFileAsync(
         ITelegramBotClient bot,
         long chatId,
         string filePath,
+        string sourceUrl,
+        DetectedMediaPlatform platform,
+        string? youTubeFormatId,
         string? service,
         CancellationToken ct)
     {
         var fileInfo = new FileInfo(filePath);
         if (!fileInfo.Exists)
-            return false;
+            return new MediaDeliveryResult(false, null, 0, null);
 
-        if (fileInfo.Length > _options.MaxUploadBytes)
+        var settings = await botSettings.GetAsync(ct);
+        var contentKey = FallbackUploadContentKey.Compute(sourceUrl, platform, youTubeFormatId);
+        var useFallbackForSize = fileInfo.Length >= settings.UploadFallbackMinBytes;
+        var exceedsMessengerLimit = fileInfo.Length > _options.MaxUploadBytes;
+
+        if (!useFallbackForSize && !exceedsMessengerLimit)
         {
-            await SendTextAsync(bot, chatId,
-                "فایل برای ارسال در پیام‌رسان بزرگ است. لطفاً لینک دیگری یا کیفیت پایین‌تر امتحان کنید.",
-                ct);
-            return false;
+            var messengerResult = await TrySendViaMessengerAsync(bot, chatId, filePath, fileInfo, service, ct);
+            if (messengerResult.Success)
+                return messengerResult;
         }
 
+        if (!settings.UploadFallbackEnabled)
+        {
+            if (useFallbackForSize || exceedsMessengerLimit)
+            {
+                await SendTextAsync(bot, chatId,
+                    "فایل برای ارسال در پیام‌رسان بزرگ است. لطفاً لینک دیگری یا کیفیت پایین‌تر امتحان کنید.",
+                    ct);
+            }
+            else
+            {
+                await SendTextAsync(bot, chatId, "ارسال فایل با خطا مواجه شد.", ct);
+            }
+
+            return new MediaDeliveryResult(false, null, fileInfo.Length, null);
+        }
+
+        return await DeliverViaFallbackAsync(
+            bot,
+            chatId,
+            filePath,
+            fileInfo,
+            sourceUrl,
+            platform,
+            youTubeFormatId,
+            contentKey,
+            settings.UploadFallbackExpiryHours,
+            service,
+            ct);
+    }
+
+    public async Task<bool> SendFallbackLinkAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        string publicUrl,
+        long fileSizeBytes,
+        CancellationToken ct)
+    {
+        var message =
+            $"فایل ({ByteUnits.FormatMegabytes(fileSizeBytes)}) از طریق لینک دانلود آماده است:\n{publicUrl}\n\n" +
+            "این لینک پس از مدتی منقضی می‌شود.";
+        await SendTextAsync(bot, chatId, message, ct);
+        return true;
+    }
+
+    private async Task<MediaDeliveryResult> TrySendViaMessengerAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        string filePath,
+        FileInfo fileInfo,
+        string? service,
+        CancellationToken ct)
+    {
         try
         {
             Message sent = _useBaleApi
@@ -185,7 +248,7 @@ public class MediaFileSender(
                 : await SendViaTelegramBotAsync(bot, chatId, filePath, fileInfo, ct);
 
             await chatStorage.SaveOutgoingAsync(chatId, $"[media:{fileInfo.Name}]", sent.MessageId, ct);
-            return true;
+            return new MediaDeliveryResult(true, MediaDeliveryMethod.Messenger, fileInfo.Length, null);
         }
         catch (Exception ex)
         {
@@ -197,8 +260,83 @@ public class MediaFileSender(
                 nameof(MediaFileSender),
                 service,
                 ct);
+            return new MediaDeliveryResult(false, null, fileInfo.Length, null);
+        }
+    }
+
+    private async Task<MediaDeliveryResult> DeliverViaFallbackAsync(
+        ITelegramBotClient bot,
+        long chatId,
+        string filePath,
+        FileInfo fileInfo,
+        string sourceUrl,
+        DetectedMediaPlatform platform,
+        string? youTubeFormatId,
+        string contentKey,
+        int expiryHours,
+        string? service,
+        CancellationToken ct)
+    {
+        if (!arvanStorage.IsConfigured)
+        {
+            logger.LogError("Upload fallback enabled but ArvanCloud storage is not configured");
+            await errorLog.LogAsync(
+                chatId,
+                "آپلود جایگزین فعال است اما ArvanCloud پیکربندی نشده",
+                "",
+                nameof(MediaFileSender),
+                service,
+                ct);
             await SendTextAsync(bot, chatId, "ارسال فایل با خطا مواجه شد.", ct);
-            return false;
+            return new MediaDeliveryResult(false, null, fileInfo.Length, null);
+        }
+
+        var existing = await fallbackUploads.FindActiveByContentKeyAsync(contentKey, ct);
+        if (existing is not null)
+        {
+            await fallbackUploads.RenewExpiryAsync(existing.Id, expiryHours, ct);
+            await SendFallbackLinkAsync(bot, chatId, existing.PublicUrl, existing.FileSizeBytes, ct);
+            return new MediaDeliveryResult(true, MediaDeliveryMethod.FallbackLink, existing.FileSizeBytes, existing.PublicUrl);
+        }
+
+        try
+        {
+            var ext = fileInfo.Extension.ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext))
+                ext = ".bin";
+
+            var objectFileName = $"{Guid.NewGuid():N}{ext}";
+            var storageKey = arvanStorage.BuildObjectKey(objectFileName);
+            var contentType = ArvanCloudStorageService.GuessContentType(ext);
+            var publicUrl = await arvanStorage.UploadPublicAsync(filePath, objectFileName, contentType, ct);
+
+            await fallbackUploads.RegisterAsync(
+                contentKey,
+                sourceUrl,
+                platform,
+                youTubeFormatId,
+                storageKey,
+                publicUrl,
+                fileInfo.Length,
+                contentType,
+                expiryHours,
+                ct);
+
+            await SendFallbackLinkAsync(bot, chatId, publicUrl, fileInfo.Length, ct);
+            return new MediaDeliveryResult(true, MediaDeliveryMethod.FallbackLink, fileInfo.Length, publicUrl);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Fallback upload failed for {File} to {ChatId}", filePath, chatId);
+            await errorLog.LogExceptionAsync(
+                chatId,
+                "خطا در آپلود فایل به ArvanCloud",
+                ex,
+                nameof(MediaFileSender),
+                service,
+                ct);
+            await SendTextAsync(bot, chatId, "ارسال فایل با خطا مواجه شد.", ct);
+            return new MediaDeliveryResult(false, null, fileInfo.Length, null);
         }
     }
 

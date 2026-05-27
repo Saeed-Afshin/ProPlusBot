@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserInteractionLog> UserInteractionLogs => Set<UserInteractionLog>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
+    public DbSet<FallbackUpload> FallbackUploads => Set<FallbackUpload>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,6 +64,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.SearchGridRows).HasDefaultValue(3);
             e.Property(x => x.SearchGridJpegQuality).HasDefaultValue(85);
             e.Property(x => x.ConversationStateBackend).HasDefaultValue(ConversationStateBackend.Memory);
+            e.Property(x => x.UploadFallbackMinBytes).HasDefaultValue(51380224L);
+            e.Property(x => x.UploadFallbackExpiryHours).HasDefaultValue(24);
+        });
+
+        modelBuilder.Entity<FallbackUpload>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ContentKey);
+            e.HasIndex(x => x.ExpiresAt);
+            e.Property(x => x.ContentKey).HasMaxLength(64);
+            e.Property(x => x.SourceUrl).HasMaxLength(2048);
+            e.Property(x => x.YouTubeFormatId).HasMaxLength(64);
+            e.Property(x => x.StorageObjectKey).HasMaxLength(512);
+            e.Property(x => x.PublicUrl).HasMaxLength(2048);
+            e.Property(x => x.ContentType).HasMaxLength(128);
         });
 
         modelBuilder.Entity<TrialSettings>(e =>
