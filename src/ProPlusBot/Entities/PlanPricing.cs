@@ -20,14 +20,17 @@ public class PlanPricing
     /// <summary>Max new support tickets per quota month; 0 = unlimited.</summary>
     public int MonthlyTicketLimit { get; set; }
 
-    public long MaxFileBytesYouTube { get; set; }
-    public long MaxFileBytesPinterest { get; set; }
+    public long MaxFileBytes { get; set; }
 
     public long ExtraDownloadCountPriceToman { get; set; }
     public int ExtraDownloadCountPack { get; set; }
 
     public long ExtraDownloadBytesPriceToman { get; set; }
     public long ExtraDownloadBytesPack { get; set; }
+
+    public bool FallbackOnSizeExceed { get; set; }
+    public bool FallbackOnBaleFailure { get; set; }
+    public int FallbackLinkExpiryHours { get; set; } = 24;
 
     public DateTime UpdatedAt { get; set; }
 }

@@ -14,7 +14,7 @@ public static class YouTubeCookiesResolver
     public const string DefaultBase64FileName = "youtube-cookies.b64.txt";
 
     public static string? ResolveFromConfiguration(
-        MediaDownloadOptions options,
+        DownloadOptions options,
         IHostEnvironment hostEnvironment,
         ILogger? logger = null)
     {
@@ -61,7 +61,7 @@ public static class YouTubeCookiesResolver
         return null;
     }
 
-    public static bool HasYouTubeAuth(MediaDownloadOptions options) =>
+    public static bool HasYouTubeAuth(DownloadOptions options) =>
         !string.IsNullOrWhiteSpace(options.YouTubeCookiesFromBrowser)
         || !string.IsNullOrWhiteSpace(options.YouTubeCookiesFile)
         || !string.IsNullOrWhiteSpace(options.YouTubeCookiesBase64File)

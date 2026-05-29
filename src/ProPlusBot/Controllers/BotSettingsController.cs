@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProPlusBot.Auth;
+using ProPlusBot.Entities;
 using ProPlusBot.Models;
 using ProPlusBot.Services;
 
@@ -16,21 +17,7 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
     public async Task<ActionResult<BotSettingsDto>> Get(CancellationToken ct)
     {
         var s = await settingsService.GetAsync(ct);
-        return Ok(new BotSettingsDto(
-            s.Mode,
-            s.UpdateMode,
-            s.IsActive,
-            s.YouTubeEnabled,
-            s.PinterestEnabled,
-            s.SearchGridColumns,
-            s.SearchGridRows,
-            s.SearchGridJpegQuality,
-            s.ConversationStateBackend,
-            s.UploadFallbackEnabled,
-            s.UploadFallbackMinBytes,
-            s.UploadFallbackExpiryHours,
-            s.WebhookUrl,
-            s.UpdatedAt));
+        return Ok(ToDto(s));
     }
 
     [HttpPut]
@@ -51,26 +38,24 @@ public class BotSettingsController(BotSettingsService settingsService) : Control
             request.SearchGridRows,
             request.SearchGridJpegQuality,
             request.ConversationStateBackend,
-            request.UploadFallbackEnabled,
-            request.UploadFallbackMinBytes,
-            request.UploadFallbackExpiryHours,
+            request.BaleDirectArvanThresholdBytes,
             User.GetAdminId(),
             ct);
 
-        return Ok(new BotSettingsDto(
-            s.Mode,
-            s.UpdateMode,
-            s.IsActive,
-            s.YouTubeEnabled,
-            s.PinterestEnabled,
-            s.SearchGridColumns,
-            s.SearchGridRows,
-            s.SearchGridJpegQuality,
-            s.ConversationStateBackend,
-            s.UploadFallbackEnabled,
-            s.UploadFallbackMinBytes,
-            s.UploadFallbackExpiryHours,
-            s.WebhookUrl,
-            s.UpdatedAt));
+        return Ok(ToDto(s));
     }
+
+    private static BotSettingsDto ToDto(BotSetting s) => new(
+        s.Mode,
+        s.UpdateMode,
+        s.IsActive,
+        s.YouTubeEnabled,
+        s.PinterestEnabled,
+        s.SearchGridColumns,
+        s.SearchGridRows,
+        s.SearchGridJpegQuality,
+        s.ConversationStateBackend,
+        s.BaleDirectArvanThresholdBytes,
+        s.WebhookUrl,
+        s.UpdatedAt);
 }

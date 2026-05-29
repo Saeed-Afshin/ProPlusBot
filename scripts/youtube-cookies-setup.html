@@ -221,7 +221,7 @@
 encode-youtube-cookies.bat</code></pre>
     <p>
       Output: <code>youtube-cookies.b64.txt</code> + clipboard.<br>
-      On server: <code>MediaDownload__YouTubeCookiesBase64=&lt;one line from file&gt;</code> then <strong>restart</strong> the app.
+      On server: <code>Download__YouTubeCookiesBase64=&lt;one line from file&gt;</code> then <strong>restart</strong> the app.
     </p>
 
     <h2 id="firefox">Mozilla Firefox</h2>
@@ -270,7 +270,7 @@ encode-youtube-cookies.bat</code></pre>
     </div>
     <p>Optional config:</p>
     <pre><code>{
-  "MediaDownload": {
+  "Download": {
     "YouTubeCookiesFile": "youtube-cookies.txt"
   }
 }</code></pre>
@@ -283,14 +283,14 @@ encode-youtube-cookies.bat</code></pre>
     <ol>
       <li>Run <code>encode-youtube-cookies.bat</code> on your PC.</li>
       <li>Upload <code>youtube-cookies.b64.txt</code> to <code>tools/</code> on the server.</li>
-      <li>Optional short env: <code>MediaDownload__YouTubeCookiesBase64File=youtube-cookies.b64.txt</code>
+      <li>Optional short env: <code>Download__YouTubeCookiesBase64File=youtube-cookies.b64.txt</code>
         (auto-detected if the file is at <code>tools/youtube-cookies.b64.txt</code>).</li>
       <li><strong>Restart</strong> the app when you replace the file.</li>
     </ol>
 
     <h3>Option D — Inline Base64 env var</h3>
     <p>Only if your panel allows long values (often <strong>&le; 1024</strong> characters):</p>
-    <p><code>MediaDownload__YouTubeCookiesBase64=&lt;entire one line from .b64.txt&gt;</code></p>
+    <p><code>Download__YouTubeCookiesBase64=&lt;entire one line from .b64.txt&gt;</code></p>
 
     <p><strong>Priority:</strong> <code>tools/youtube-cookies.txt</code> on disk wins over any Base64 source.</p>
 

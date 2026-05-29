@@ -60,3 +60,37 @@ On startup the log shows:
 - Masked bot token prefix/suffix
 
 **Never run long polling with the production bot token on your machine** while production is also running — use only the dev bot locally.
+
+## Docker (PostgreSQL + Redis + app)
+
+1. Copy the example env file and set secrets (bot token, JWT secret, Postgres/Redis passwords):
+
+   ```bash
+   copy .env.example .env
+   ```
+
+2. Start PostgreSQL, Redis, and the app:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open `http://localhost:8080` (or `APP_HTTP_PORT` from `.env`).
+
+Compose mounts volumes for `tools`, `media`, and `data` (Data Protection keys). Migrations run on app startup.
+
+On first start the app auto-downloads yt-dlp, gallery-dl, ffmpeg, and Deno into `/app/tools` (same as a normal run with `Download:AutoDownload*` enabled). The `app_tools` volume keeps them across restarts.
+
+| Variable | Purpose |
+|----------|---------|
+| `POSTGRES_*` | Database container |
+| `REDIS_*` | Redis container (conversation state when enabled in admin Settings) |
+| `ConnectionStrings__DefaultConnection` | Overridden in compose to use host `db` |
+| `Redis__ConnectionString` | Overridden in compose to use host `redis` |
+| `Bot__Token`, `Jwt__Secret` | Required by the app |
+| `Download__ToolsDirectory`, `Download__MediaDirectory` | Persisted download/tool paths |
+| `DataProtection__KeysPath` | Admin cookie keys across restarts |
+
+In admin **Settings**, set **session storage** to **Redis** to use the Redis container instead of in-memory state.
+
+`.env` is gitignored; `.env.example` documents recommended overrides.

@@ -16,9 +16,7 @@ public record BotSettingsDto(
     int SearchGridRows,
     int SearchGridJpegQuality,
     ConversationStateBackend ConversationStateBackend,
-    bool UploadFallbackEnabled,
-    long UploadFallbackMinBytes,
-    int UploadFallbackExpiryHours,
+    long BaleDirectArvanThresholdBytes,
     string? WebhookUrl,
     DateTime UpdatedAt);
 
@@ -32,9 +30,7 @@ public record UpdateBotSettingsRequest(
     int? SearchGridRows,
     int? SearchGridJpegQuality,
     ConversationStateBackend? ConversationStateBackend,
-    bool? UploadFallbackEnabled,
-    long? UploadFallbackMinBytes,
-    int? UploadFallbackExpiryHours,
+    long? BaleDirectArvanThresholdBytes,
     string? WebhookUrl);
 
 public record ChatMessageDto(long Id, long TelegramUserId, MessageDirection Direction, string? Text, string MessageType, DateTime CreatedAt);

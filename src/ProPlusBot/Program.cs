@@ -18,12 +18,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<BotOptions>(builder.Configuration.GetSection(BotOptions.SectionName));
 builder.Services.Configure<SuperAdminOptions>(builder.Configuration.GetSection(SuperAdminOptions.SectionName));
-builder.Services.Configure<MediaDownloadOptions>(builder.Configuration.GetSection(MediaDownloadOptions.SectionName));
+builder.Services.Configure<DownloadOptions>(builder.Configuration.GetSection(DownloadOptions.SectionName));
 builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection(PaymentOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection(RedisOptions.SectionName));
 builder.Services.Configure<ConversationStateOptions>(builder.Configuration.GetSection(ConversationStateOptions.SectionName));
 builder.Services.Configure<ArvanCloudStorageOptions>(builder.Configuration.GetSection(ArvanCloudStorageOptions.SectionName));
+builder.Services.Configure<AdminSettingsCacheOptions>(builder.Configuration.GetSection(AdminSettingsCacheOptions.SectionName));
 builder.Services.Configure<AppDataProtectionOptions>(builder.Configuration.GetSection(AppDataProtectionOptions.SectionName));
 
 var dataProtectionOptions = builder.Configuration
@@ -128,7 +129,6 @@ builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<BotUpdateHandler>();
 builder.Services.AddScoped<QuotaService>();
 builder.Services.AddScoped<PlanLifecycleService>();
-builder.Services.AddScoped<UserPlanLimitService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<PlanCatalogService>();
 builder.Services.AddScoped<BalePaymentService>();
@@ -180,8 +180,8 @@ builder.Services.AddSingleton<SearchResultGridComposer>();
 builder.Services.AddHttpClient<PinterestSearchService>((_, client) =>
 {
     var timeoutSeconds = builder.Configuration
-        .GetSection(MediaDownloadOptions.SectionName)
-        .GetValue(nameof(MediaDownloadOptions.PinterestSearchTimeoutSeconds), 30);
+        .GetSection(DownloadOptions.SectionName)
+        .GetValue(nameof(DownloadOptions.PinterestSearchTimeoutSeconds), 30);
 
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
@@ -190,6 +190,8 @@ builder.Services.AddHttpClient<PinterestSearchService>((_, client) =>
 builder.Services.AddScoped<MediaFileSender>();
 builder.Services.AddScoped<FallbackUploadService>();
 builder.Services.AddSingleton<ArvanCloudStorageService>();
+builder.Services.AddSingleton<AdminSettingsCache>();
+builder.Services.AddHostedService<AdminSettingsCacheBootstrap>();
 builder.Services.AddHostedService<UploadFallbackCleanupHostedService>();
 builder.Services.AddHostedService<MediaDownloadBackgroundService>();
 builder.Services.AddScoped<OtpService>();

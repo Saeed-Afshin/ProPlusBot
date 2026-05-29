@@ -15,7 +15,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserQuotaAdjustment> UserQuotaAdjustments => Set<UserQuotaAdjustment>();
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
     public DbSet<UserReservedPlan> UserReservedPlans => Set<UserReservedPlan>();
-    public DbSet<UserPlanPlatformLimit> UserPlanPlatformLimits => Set<UserPlanPlatformLimit>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
     public DbSet<TrialSettings> TrialSettings => Set<TrialSettings>();
     public DbSet<SearchUsageLog> SearchUsageLogs => Set<SearchUsageLog>();
@@ -64,8 +63,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.SearchGridRows).HasDefaultValue(3);
             e.Property(x => x.SearchGridJpegQuality).HasDefaultValue(85);
             e.Property(x => x.ConversationStateBackend).HasDefaultValue(ConversationStateBackend.Memory);
-            e.Property(x => x.UploadFallbackMinBytes).HasDefaultValue(51380224L);
-            e.Property(x => x.UploadFallbackExpiryHours).HasDefaultValue(24);
+            e.Property(x => x.BaleDirectArvanThresholdBytes).HasDefaultValue(51380224L);
         });
 
         modelBuilder.Entity<FallbackUpload>(e =>
@@ -107,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<PlanPricing>(e =>
         {
             e.HasKey(x => x.Plan);
+            e.Property(x => x.FallbackLinkExpiryHours).HasDefaultValue(24);
         });
 
         modelBuilder.Entity<DownloadUsageLog>(e =>
@@ -135,16 +134,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.TelegramUserId, x.CreatedAt });
             e.HasOne(x => x.User)
                 .WithMany(u => u.ReservedPlans)
-                .HasForeignKey(x => x.TelegramUserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<UserPlanPlatformLimit>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.TelegramUserId, x.Platform, x.Period, x.LimitKind }).IsUnique();
-            e.HasOne(x => x.User)
-                .WithMany(u => u.PlanPlatformLimits)
                 .HasForeignKey(x => x.TelegramUserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

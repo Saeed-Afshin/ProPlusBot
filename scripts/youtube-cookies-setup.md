@@ -58,7 +58,7 @@ encode-youtube-cookies.bat
 ```
 
 Output: `youtube-cookies.b64.txt` + clipboard.  
-Set on server: `MediaDownload__YouTubeCookiesBase64=<one line from file>` then **restart** the app.
+Set on server: `Download__YouTubeCookiesBase64=<one line from file>` then **restart** the app.
 
 ---
 
@@ -108,7 +108,7 @@ When cookies expire: replace the file only. **No app redeploy.** Usually **no re
 Config (optional):
 
 ```json
-"MediaDownload": {
+"Download": {
   "YouTubeCookiesFile": "youtube-cookies.txt"
 }
 ```
@@ -119,7 +119,7 @@ Many hosts **reject env vars over ~1024–4096 characters** (a 2 KB `.b64.txt` i
 
 1. Run `encode-youtube-cookies.bat` on your PC.
 2. Upload `youtube-cookies.b64.txt` to the server `tools/` folder (SFTP, volume mount, etc.).
-3. Optional short env var: `MediaDownload__YouTubeCookiesBase64File=youtube-cookies.b64.txt`  
+3. Optional short env var: `Download__YouTubeCookiesBase64File=youtube-cookies.b64.txt`  
    (If the file is at `tools/youtube-cookies.b64.txt`, the app finds it automatically.)
 4. **Restart** the app after the first upload or when you replace the file.
 
@@ -127,7 +127,7 @@ Many hosts **reject env vars over ~1024–4096 characters** (a 2 KB `.b64.txt` i
 
 Only if your host allows **long** env values (often **≤ 1024** chars on Windows `setx` / small panels):
 
-`MediaDownload__YouTubeCookiesBase64=<entire one line from .b64.txt>`
+`Download__YouTubeCookiesBase64=<entire one line from .b64.txt>`
 
 Then **restart** the app.
 
@@ -149,12 +149,12 @@ Cookies with `SID` / `LOGIN_INFO` are necessary but not always enough. YouTube m
 
 Install **Deno** (or Node 20+) on the server — see **[youtube-server-setup.md](./youtube-server-setup.md)**. Plain `"ejs"` is ignored; use `ejs:github`.
 
-On the server, **do not** override with `MediaDownload__YouTubeExtractorArgs=youtube:player_client=web` unless you also supply a PO token ([PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)).
+On the server, **do not** override with `Download__YouTubeExtractorArgs=youtube:player_client=web` unless you also supply a PO token ([PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)).
 
 Optional env:
 
 ```text
-MediaDownload__YouTubePoToken=web.gvs+YOUR_TOKEN
+Download__YouTubePoToken=web.gvs+YOUR_TOKEN
 ```
 
 After deploy, logs should show `yt-dlp version: …` (use a recent release). Restart the app so the bundled yt-dlp binary can auto-update on startup if `AutoDownloadYtDlp` is enabled.

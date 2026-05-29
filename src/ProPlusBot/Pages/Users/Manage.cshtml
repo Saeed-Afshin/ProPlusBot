@@ -79,25 +79,10 @@
                     </tbody>
                 </table>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered align-middle text-center mb-0">
-                    <thead class="table-light">
-                    <tr>
-                        <th>پلتفرم</th>
-                        <th>حداکثر فایل</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var pf in s.PlatformMaxFiles)
-                    {
-                        <tr>
-                            <td>@MediaPlatformMapper.ToDisplayName(pf.Platform)</td>
-                            <td dir="ltr">@ByteUnits.FormatVolume(pf.MaxFileBytesLimit)</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
+            <p class="mb-0">
+                <strong>حداکثر حجم هر فایل:</strong>
+                <span dir="ltr">@ByteUnits.FormatVolume(s.MaxFileBytesLimit)</span>
+            </p>
         </div>
     </div>
 
@@ -130,48 +115,6 @@
         </div>
     }
 
-    @if (Model.UserLimitRows.Count > 0)
-    {
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>حداکثر حجم فایل (اختصاصی کاربر)</span>
-                <form method="post" asp-page-handler="ClearUserLimits" class="m-0">
-                    <input type="hidden" asp-for="EditUserId" />
-                    <button type="submit" class="btn btn-sm btn-outline-warning">بازگشت به پیش‌فرض بسته</button>
-                </form>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered align-middle text-center mb-0">
-                        <thead class="table-light">
-                        <tr>
-                            <th>حداکثر حجم هر فایل (مگابایت)</th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var row in Model.UserLimitRows)
-                        {
-                            var rowFormId = $"limit-{Model.EditUserId}";
-                            <tr class="@(row.IsCustom ? "table-warning" : null)">
-                                <td>
-                                    <input form="@rowFormId" type="number" name="megabytes" value="@row.MaxFileMegabytes"
-                                           class="form-control form-control-sm" min="0" step="0.01" dir="ltr" />
-                                </td>
-                                <td>
-                                    <button type="submit" form="@rowFormId" class="btn btn-sm btn-primary">ذخیره</button>
-                                </td>
-                            </tr>
-                            <form id="@rowFormId" method="post" asp-page-handler="SaveUserMaxFile" class="d-none">
-                                <input type="hidden" name="EditUserId" value="@Model.EditUserId" />
-                            </form>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    }
 }
 
 <div class="card">

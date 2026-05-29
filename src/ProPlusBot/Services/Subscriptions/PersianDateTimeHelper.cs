@@ -31,8 +31,13 @@ public static class PersianDateTimeHelper
         if (utc is null)
             return "00:00:00";
 
-        var local = ToTehranLocal(utc.Value);
-        return local.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        return ToTehranLocalTime(utc.Value, includeSeconds: true);
+    }
+
+    public static string ToTehranLocalTime(DateTime utc, bool includeSeconds = true)
+    {
+        var local = ToTehranLocal(utc);
+        return local.ToString(includeSeconds ? "HH:mm:ss" : "HH:mm", CultureInfo.InvariantCulture);
     }
 
     public static string FormatExpiryDisplay(DateTime? utc)

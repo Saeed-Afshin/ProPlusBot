@@ -52,7 +52,7 @@ public class PlanCatalogService(AppDbContext db, IOptions<PaymentOptions> paymen
         if (row.MonthlyTicketLimit > 0)
             sb.AppendLine($"  • تیکت پشتیبانی: {row.MonthlyTicketLimit} عدد");
         sb.AppendLine();
-        sb.AppendLine($"  حداکثر هر فایل: {ByteUnits.FormatVolume(PlanExtraPackHelper.GetUnifiedMaxFileBytes(row))}");
+        sb.AppendLine($"  حداکثر هر فایل: {ByteUnits.FormatVolume(row.MaxFileBytes)}");
         if (PlanExtraPackHelper.IsPackAvailable(row))
             sb.AppendLine($"  سهمیه اضافه: {PlanExtraPackHelper.BuildOfferText(row)}");
 

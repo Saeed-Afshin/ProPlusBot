@@ -8,41 +8,14 @@ namespace ProPlusBot.Services;
 public class BotSettingsService(
     AppDbContext db,
     YouTubeCookiesProvider cookiesProvider,
-    Media.State.ConversationStateBackendHolder conversationStateBackendHolder)
+    Media.State.ConversationStateBackendHolder conversationStateBackendHolder,
+    AdminSettingsCache adminSettingsCache)
 {
     public async Task<BotSetting> GetAsync(CancellationToken ct = default)
     {
-        var settings = await db.BotSettings.AsNoTracking()
-            .Where(s => s.Id == 1)
-            .FirstOrDefaultAsync(ct);
-        if (settings is not null)
-        {
-            var normalized = Normalize(settings);
-            conversationStateBackendHolder.Set(normalized.ConversationStateBackend);
-            return normalized;
-        }
-
-        settings = new BotSetting
-        {
-            Id = 1,
-            Mode = BotMode.Live,
-            UpdateMode = BotUpdateMode.LongPolling,
-            IsActive = true,
-            YouTubeEnabled = true,
-            PinterestEnabled = true,
-            SearchGridColumns = 3,
-            SearchGridRows = 3,
-            SearchGridJpegQuality = SearchGridPresets.DefaultJpegQuality,
-            ConversationStateBackend = ConversationStateBackend.Memory,
-            UploadFallbackEnabled = false,
-            UploadFallbackMinBytes = UploadFallbackPresets.DefaultMinBytes,
-            UploadFallbackExpiryHours = UploadFallbackPresets.DefaultExpiryHours,
-            UpdatedAt = DateTime.UtcNow
-        };
-        db.BotSettings.Add(settings);
-        await db.SaveChangesAsync(ct);
-        conversationStateBackendHolder.Set(settings.ConversationStateBackend);
-        return settings;
+        var snapshot = await adminSettingsCache.GetAsync(ct);
+        conversationStateBackendHolder.Set(snapshot.Bot.ConversationStateBackend);
+        return snapshot.Bot;
     }
 
     public async Task<BotSetting> UpdateAsync(
@@ -56,9 +29,7 @@ public class BotSettingsService(
         int? searchGridRows,
         int? searchGridJpegQuality,
         ConversationStateBackend? conversationStateBackend,
-        bool? uploadFallbackEnabled,
-        long? uploadFallbackMinBytes,
-        int? uploadFallbackExpiryHours,
+        long? baleDirectArvanThresholdBytes,
         Guid? updatedByAdminId,
         CancellationToken ct = default)
     {
@@ -96,21 +67,31 @@ public class BotSettingsService(
         if (conversationStateBackend.HasValue)
             settings.ConversationStateBackend = conversationStateBackend.Value;
 
-        if (uploadFallbackEnabled.HasValue)
-            settings.UploadFallbackEnabled = uploadFallbackEnabled.Value;
-
-        if (uploadFallbackMinBytes.HasValue)
-            settings.UploadFallbackMinBytes = UploadFallbackPresets.NormalizeMinBytes(uploadFallbackMinBytes.Value);
-
-        if (uploadFallbackExpiryHours.HasValue)
-            settings.UploadFallbackExpiryHours = UploadFallbackPresets.NormalizeExpiryHours(uploadFallbackExpiryHours.Value);
+        if (baleDirectArvanThresholdBytes.HasValue)
+            settings.BaleDirectArvanThresholdBytes = UploadFallbackPresets.NormalizeMinBytes(baleDirectArvanThresholdBytes.Value);
 
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;
         await db.SaveChangesAsync(ct);
-        var normalized = Normalize(settings);
-        conversationStateBackendHolder.Set(normalized.ConversationStateBackend);
-        return normalized;
+
+        var snapshot = await adminSettingsCache.RefreshAsync(ct);
+        conversationStateBackendHolder.Set(snapshot.Bot.ConversationStateBackend);
+        return snapshot.Bot;
+    }
+
+    public async Task UpdateBaleDirectArvanThresholdAsync(long bytes, Guid? updatedByAdminId, CancellationToken ct = default)
+    {
+        var settings = await db.BotSettings.FirstOrDefaultAsync(s => s.Id == 1, ct)
+            ?? new BotSetting { Id = 1 };
+
+        if (settings.Id == 0)
+            db.BotSettings.Add(settings);
+
+        settings.BaleDirectArvanThresholdBytes = UploadFallbackPresets.NormalizeMinBytes(bytes);
+        settings.UpdatedAt = DateTime.UtcNow;
+        settings.UpdatedByAdminId = updatedByAdminId;
+        await db.SaveChangesAsync(ct);
+        await adminSettingsCache.RefreshAsync(ct);
     }
 
     public async Task<(bool Success, string? ErrorMessage, string? WarningMessage)> UpdateYouTubeCookiesAsync(
@@ -151,25 +132,23 @@ public class BotSettingsService(
                     warning);
             }
 
+            await adminSettingsCache.RefreshAsync(ct);
             return (true, null, warning);
         }
 
         settings.UpdatedAt = DateTime.UtcNow;
         settings.UpdatedByAdminId = updatedByAdminId;
         await db.SaveChangesAsync(ct);
+        await adminSettingsCache.RefreshAsync(ct);
         return (true, null, null);
     }
 
     public async Task<(bool Configured, DateTime? UpdatedAt)> GetYouTubeCookiesStatusAsync(CancellationToken ct = default)
     {
-        var row = await db.BotSettings
-            .AsNoTracking()
-            .Select(s => new { s.YouTubeCookiesContent, s.YouTubeCookiesUpdatedAt })
-            .FirstOrDefaultAsync(ct);
-
+        var snapshot = await adminSettingsCache.GetAsync(ct);
         return (
-            !string.IsNullOrWhiteSpace(row?.YouTubeCookiesContent),
-            row?.YouTubeCookiesUpdatedAt);
+            !string.IsNullOrWhiteSpace(snapshot.Bot.YouTubeCookiesContent),
+            snapshot.Bot.YouTubeCookiesUpdatedAt);
     }
 
     private static void TryDeleteMaterializedCookieFile()
@@ -188,15 +167,5 @@ public class BotSettingsService(
         {
             // best effort
         }
-    }
-
-    private static BotSetting Normalize(BotSetting settings)
-    {
-        var (cols, rows) = SearchGridPresets.Normalize(settings.SearchGridColumns, settings.SearchGridRows);
-        settings.SearchGridColumns = cols;
-        settings.SearchGridRows = rows;
-        settings.SearchGridJpegQuality = SearchGridPresets.NormalizeJpegQuality(settings.SearchGridJpegQuality);
-        settings.UploadFallbackMinBytes = UploadFallbackPresets.NormalizeMinBytes(settings.UploadFallbackMinBytes);
-        return settings;
     }
 }

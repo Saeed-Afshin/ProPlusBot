@@ -53,8 +53,7 @@ public class DatabaseInitializer(AppDbContext db, TrialSettingsService trialSett
                 row.MonthlyDownloadBytes = seed.MonthlyDownloadBytes;
                 row.MonthlySearchCount = seed.MonthlySearchCount;
                 row.MonthlyTicketLimit = seed.MonthlyTicketLimit;
-                row.MaxFileBytesYouTube = seed.MaxFileBytesYouTube;
-                row.MaxFileBytesPinterest = seed.MaxFileBytesPinterest;
+                row.MaxFileBytes = seed.MaxFileBytes;
                 row.ExtraDownloadCountPriceToman = seed.ExtraDownloadCountPriceToman;
                 row.ExtraDownloadCountPack = seed.ExtraDownloadCountPack;
                 row.ExtraDownloadBytesPriceToman = seed.ExtraDownloadBytesPriceToman;

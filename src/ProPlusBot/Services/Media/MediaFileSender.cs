@@ -13,14 +13,13 @@ public class MediaFileSender(
     ChatStorageService chatStorage,
     ErrorLogService errorLog,
     BaleApiFileSender baleFileSender,
-    BotSettingsService botSettings,
+    AdminSettingsCache adminSettingsCache,
+    QuotaService quotaService,
     FallbackUploadService fallbackUploads,
     ArvanCloudStorageService arvanStorage,
-    IOptions<MediaDownloadOptions> options,
     IOptions<BotOptions> botOptions,
     ILogger<MediaFileSender> logger)
 {
-    private readonly MediaDownloadOptions _options = options.Value;
     private readonly bool _useBaleApi =
         botOptions.Value.BaleApiBaseUrl.Contains("bale", StringComparison.OrdinalIgnoreCase);
 
@@ -177,31 +176,43 @@ public class MediaFileSender(
         if (!fileInfo.Exists)
             return new MediaDeliveryResult(false, null, 0, null);
 
-        var settings = await botSettings.GetAsync(ct);
+        var config = (await adminSettingsCache.GetAsync(ct)).ToUploadFallbackConfig();
+        var plan = await quotaService.GetEffectivePlanAsync(chatId, ct);
+        var planPolicy = config.GetPlan(plan);
         var contentKey = FallbackUploadContentKey.Compute(sourceUrl, platform, youTubeFormatId);
-        var useFallbackForSize = fileInfo.Length >= settings.UploadFallbackMinBytes;
-        var exceedsMessengerLimit = fileInfo.Length > _options.MaxUploadBytes;
+        var sizeExceedPath = fileInfo.Length >= config.BaleDirectArvanThresholdBytes;
 
-        if (!useFallbackForSize && !exceedsMessengerLimit)
+        if (!sizeExceedPath)
         {
             var messengerResult = await TrySendViaMessengerAsync(bot, chatId, filePath, fileInfo, service, ct);
             if (messengerResult.Success)
                 return messengerResult;
-        }
 
-        if (!settings.UploadFallbackEnabled)
-        {
-            if (useFallbackForSize || exceedsMessengerLimit)
-            {
-                await SendTextAsync(bot, chatId,
-                    "فایل برای ارسال در پیام‌رسان بزرگ است. لطفاً لینک دیگری یا کیفیت پایین‌تر امتحان کنید.",
-                    ct);
-            }
-            else
+            if (!planPolicy.Allows(UploadFallbackTrigger.BaleFailure))
             {
                 await SendTextAsync(bot, chatId, "ارسال فایل با خطا مواجه شد.", ct);
+                return new MediaDeliveryResult(false, null, fileInfo.Length, null);
             }
 
+            return await DeliverViaFallbackAsync(
+                bot,
+                chatId,
+                filePath,
+                fileInfo,
+                sourceUrl,
+                platform,
+                youTubeFormatId,
+                contentKey,
+                planPolicy.ExpiryHours,
+                service,
+                ct);
+        }
+
+        if (!planPolicy.Allows(UploadFallbackTrigger.SizeExceed))
+        {
+            await SendTextAsync(bot, chatId,
+                "فایل برای ارسال در پیام‌رسان بزرگ است. لطفاً لینک دیگری یا کیفیت پایین‌تر امتحان کنید.",
+                ct);
             return new MediaDeliveryResult(false, null, fileInfo.Length, null);
         }
 
@@ -214,7 +225,7 @@ public class MediaFileSender(
             platform,
             youTubeFormatId,
             contentKey,
-            settings.UploadFallbackExpiryHours,
+            planPolicy.ExpiryHours,
             service,
             ct);
     }
@@ -224,11 +235,10 @@ public class MediaFileSender(
         long chatId,
         string publicUrl,
         long fileSizeBytes,
+        DateTime expiresAtUtc,
         CancellationToken ct)
     {
-        var message =
-            $"فایل ({ByteUnits.FormatMegabytes(fileSizeBytes)}) از طریق لینک دانلود آماده است:\n{publicUrl}\n\n" +
-            "این لینک پس از مدتی منقضی می‌شود.";
+        var message = FallbackLinkMessages.Build(fileSizeBytes, publicUrl, expiresAtUtc);
         await SendTextAsync(bot, chatId, message, ct);
         return true;
     }
@@ -295,7 +305,8 @@ public class MediaFileSender(
         if (existing is not null)
         {
             await fallbackUploads.RenewExpiryAsync(existing.Id, expiryHours, ct);
-            await SendFallbackLinkAsync(bot, chatId, existing.PublicUrl, existing.FileSizeBytes, ct);
+            var expiresAt = FallbackLinkMessages.ComputeExpiresAtUtc(expiryHours);
+            await SendFallbackLinkAsync(bot, chatId, existing.PublicUrl, existing.FileSizeBytes, expiresAt, ct);
             return new MediaDeliveryResult(true, MediaDeliveryMethod.FallbackLink, existing.FileSizeBytes, existing.PublicUrl);
         }
 
@@ -310,7 +321,7 @@ public class MediaFileSender(
             var contentType = ArvanCloudStorageService.GuessContentType(ext);
             var publicUrl = await arvanStorage.UploadPublicAsync(filePath, objectFileName, contentType, ct);
 
-            await fallbackUploads.RegisterAsync(
+            var upload = await fallbackUploads.RegisterAsync(
                 contentKey,
                 sourceUrl,
                 platform,
@@ -322,7 +333,7 @@ public class MediaFileSender(
                 expiryHours,
                 ct);
 
-            await SendFallbackLinkAsync(bot, chatId, publicUrl, fileInfo.Length, ct);
+            await SendFallbackLinkAsync(bot, chatId, publicUrl, fileInfo.Length, upload.ExpiresAt, ct);
             return new MediaDeliveryResult(true, MediaDeliveryMethod.FallbackLink, fileInfo.Length, publicUrl);
         }
         catch (Exception ex)

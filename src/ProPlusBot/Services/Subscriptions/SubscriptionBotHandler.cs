@@ -255,53 +255,9 @@ public class SubscriptionBotHandler(
     private async Task SendAccountSummaryAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
     {
         var summary = await quotaService.GetAccountSummaryAsync(userId, ct);
-        var lines = new List<string>
-        {
-            $"بسته فعال: {MediaPlatformMapper.ToDisplayName(summary.EffectivePlan)}"
-        };
-
-        if (summary.StoredPlan != summary.EffectivePlan)
-            lines.Add($"بسته ثبت‌شده: {MediaPlatformMapper.ToDisplayName(summary.StoredPlan)}");
-
-        if (summary.PlanExpiresAt is null)
-            lines.Add("انقضا: —");
-        else
-            lines.Add($"انقضا: {PersianDateTimeHelper.ToShamsiDateString(summary.PlanExpiresAt)} {PersianDateTimeHelper.ToTimeString(summary.PlanExpiresAt)}");
-
-        if (!summary.HasSubscriptionAccess)
-            lines.Add("وضعیت: دوره آزمایشی پایان یافته");
-        else
-            lines.Add(summary.IsBanned ? "وضعیت: مسدود" : summary.IsTrialActive ? "وضعیت: آزمایشی فعال" : "وضعیت: فعال");
-
-        lines.Add(
-            $"شروع دوره سهمیه: {PersianDateTimeHelper.ToShamsiDateString(summary.QuotaPeriodStartAt)} {PersianDateTimeHelper.ToTimeString(summary.QuotaPeriodStartAt)}");
-        lines.Add(string.Empty);
-
-        var q = summary.SharedQuota;
-        lines.Add("سهمیه ماهانه (یوتیوب + پینترست):");
-        lines.Add($"  دانلود: {q.MonthlyDownloadCountUsed}/{q.MonthlyDownloadCountLimit}، {ByteUnits.FormatVolume(q.MonthlyBytesUsed)}/{ByteUnits.FormatVolume(q.MonthlyBytesLimit)}");
-        lines.Add($"  جستجو: {q.MonthlySearchUsed}/{q.MonthlySearchLimit}");
-        if (q.ExtraDownloadCountBonus > 0 || q.ExtraDownloadBytesBonus > 0 || q.ExtraSearchCountBonus > 0)
-        {
-            lines.Add(
-                $"  سهمیه اضافه: +{q.ExtraDownloadCountBonus} دانلود، +{ByteUnits.FormatVolume(q.ExtraDownloadBytesBonus)}، +{q.ExtraSearchCountBonus} جستجو");
-        }
-
-        if (summary.PlatformMaxFiles.Count > 0)
-        {
-            var maxFile = summary.PlatformMaxFiles[0].MaxFileBytesLimit;
-            if (summary.PlatformMaxFiles.All(p => p.MaxFileBytesLimit == maxFile))
-                lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatVolume(maxFile)}");
-            else
-            {
-                foreach (var pf in summary.PlatformMaxFiles)
-                {
-                    lines.Add($"▫️ {MediaPlatformMapper.ToDisplayName(pf.Platform)}");
-                    lines.Add($"  حداکثر هر فایل: {ByteUnits.FormatVolume(pf.MaxFileBytesLimit)}");
-                }
-            }
-        }
-
+        var lines = new List<string>();
+        lines.AddRange(AccountSummaryFormatter.FormatPlanHeader(summary));
+        lines.AddRange(AccountSummaryFormatter.FormatMonthlyQuota(summary.SharedQuota, summary.MaxFileBytesLimit));
         lines.Add(string.Empty);
 
         if (summary.ReservedPlans.Count > 0)

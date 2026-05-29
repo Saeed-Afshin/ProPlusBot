@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProPlusBot.Data;
@@ -11,9 +12,11 @@ using ProPlusBot.Data;
 namespace ProPlusBot.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260527204626_MoveUploadFallbackToPlans")]
+    partial class MoveUploadFallbackToPlans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -547,7 +550,10 @@ namespace ProPlusBot.Data.Migrations
                     b.Property<bool>("FallbackOnSizeExceed")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("MaxFileBytes")
+                    b.Property<long>("MaxFileBytesPinterest")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MaxFileBytesYouTube")
                         .HasColumnType("bigint");
 
                     b.Property<long>("MonthlyDownloadBytes")
@@ -744,6 +750,40 @@ namespace ProPlusBot.Data.Migrations
                     b.ToTable("UserInteractionLogs");
                 });
 
+            modelBuilder.Entity("ProPlusBot.Entities.UserPlanPlatformLimit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LimitKind")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("LimitValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Platform")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TelegramUserId", "Platform", "Period", "LimitKind")
+                        .IsUnique();
+
+                    b.ToTable("UserPlanPlatformLimits");
+                });
+
             modelBuilder.Entity("ProPlusBot.Entities.UserQuotaAdjustment", b =>
                 {
                     b.Property<long>("TelegramUserId")
@@ -907,6 +947,17 @@ namespace ProPlusBot.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProPlusBot.Entities.UserPlanPlatformLimit", b =>
+                {
+                    b.HasOne("ProPlusBot.Entities.BotUser", "User")
+                        .WithMany("PlanPlatformLimits")
+                        .HasForeignKey("TelegramUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ProPlusBot.Entities.UserQuotaAdjustment", b =>
                 {
                     b.HasOne("ProPlusBot.Entities.BotUser", "User")
@@ -936,6 +987,8 @@ namespace ProPlusBot.Data.Migrations
                     b.Navigation("Messages");
 
                     b.Navigation("Payments");
+
+                    b.Navigation("PlanPlatformLimits");
 
                     b.Navigation("QuotaAdjustments");
 

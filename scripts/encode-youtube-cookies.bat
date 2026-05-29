@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-REM Converts Netscape cookies file to one-line Base64 for MediaDownload__YouTubeCookiesBase64
+REM Converts Netscape cookies file to one-line Base64 for Download__YouTubeCookiesBase64
 REM Default input:  youtube-cookies.txt (this folder)
 REM Default output: youtube-cookies.b64.txt (this folder)
 REM Usage:
@@ -48,8 +48,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Write-Host '  A) Copy youtube-cookies.txt to app tools/ (best; no size limit)'; " ^
   "Write-Host '  B) Copy youtube-cookies.b64.txt to app tools/ (no long env var needed)'; " ^
   "Write-Host '  C) Inline env (often fails if over ~1 KB on host panels):'; " ^
-  "Write-Host '     MediaDownload__YouTubeCookiesBase64=<one line>'; " ^
-  "Write-Host '     Or: MediaDownload__YouTubeCookiesBase64File=youtube-cookies.b64.txt';"
+  "Write-Host '     Download__YouTubeCookiesBase64=<one line>'; " ^
+  "Write-Host '     Or: Download__YouTubeCookiesBase64File=youtube-cookies.b64.txt';"
 
 if errorlevel 1 (
     echo.

@@ -2,7 +2,7 @@ using ProPlusBot.Entities;
 
 namespace ProPlusBot.Services.Subscriptions;
 
-internal static class SubscriptionSeedData
+public static class SubscriptionSeedData
 {
     public static IReadOnlyList<PlanPricing> DefaultPlanDefinitions() =>
     [
@@ -12,48 +12,56 @@ internal static class SubscriptionSeedData
             downloadMb: 1000,
             searches: 40,
             tickets: 2,
-            maxFileYtMb: 25,
-            maxFilePinMb: 15,
+            maxFileMb: 25,
             extraCountPrice: 15_000,
             extraCountPack: 5,
             extraBytesPrice: 15_000,
-            extraBytesMb: 200),
+            extraBytesMb: 200,
+            fallbackSize: false,
+            fallbackFail: false,
+            fallbackExpiryHours: 24),
         Plan(SubscriptionPlan.Bronze,
             price: 99_000,
             downloads: 300,
             downloadMb: 4096,
             searches: 400,
             tickets: 5,
-            maxFileYtMb: 40,
-            maxFilePinMb: 25,
+            maxFileMb: 40,
             extraCountPrice: 25_000,
             extraCountPack: 10,
             extraBytesPrice: 25_000,
-            extraBytesMb: 500),
+            extraBytesMb: 500,
+            fallbackSize: false,
+            fallbackFail: true,
+            fallbackExpiryHours: 24),
         Plan(SubscriptionPlan.Silver,
             price: 199_000,
             downloads: 800,
             downloadMb: 10240,
             searches: 1000,
             tickets: 10,
-            maxFileYtMb: 49,
-            maxFilePinMb: 40,
+            maxFileMb: 49,
             extraCountPrice: 35_000,
             extraCountPack: 15,
             extraBytesPrice: 35_000,
-            extraBytesMb: 1024),
+            extraBytesMb: 1024,
+            fallbackSize: true,
+            fallbackFail: true,
+            fallbackExpiryHours: 24),
         Plan(SubscriptionPlan.Golden,
             price: 399_000,
             downloads: 2000,
             downloadMb: 30720,
             searches: 4000,
             tickets: 20,
-            maxFileYtMb: 49,
-            maxFilePinMb: 49,
+            maxFileMb: 250,
             extraCountPrice: 49_000,
             extraCountPack: 25,
             extraBytesPrice: 49_000,
-            extraBytesMb: 2048),
+            extraBytesMb: 2048,
+            fallbackSize: true,
+            fallbackFail: true,
+            fallbackExpiryHours: 24),
     ];
 
     private static PlanPricing Plan(
@@ -63,12 +71,14 @@ internal static class SubscriptionSeedData
         int downloadMb,
         long searches,
         int tickets,
-        int maxFileYtMb,
-        int maxFilePinMb,
+        int maxFileMb,
         long extraCountPrice,
         int extraCountPack,
         long extraBytesPrice,
-        int extraBytesMb) =>
+        int extraBytesMb,
+        bool fallbackSize,
+        bool fallbackFail,
+        int fallbackExpiryHours) =>
         new()
         {
             Plan = plan,
@@ -77,12 +87,14 @@ internal static class SubscriptionSeedData
             MonthlyDownloadBytes = downloadMb * 1024L * 1024,
             MonthlySearchCount = searches,
             MonthlyTicketLimit = tickets,
-            MaxFileBytesYouTube = maxFileYtMb * 1024L * 1024,
-            MaxFileBytesPinterest = maxFilePinMb * 1024L * 1024,
+            MaxFileBytes = maxFileMb * 1024L * 1024,
             ExtraDownloadCountPriceToman = extraCountPrice,
             ExtraDownloadCountPack = extraCountPack,
             ExtraDownloadBytesPriceToman = extraBytesPrice,
             ExtraDownloadBytesPack = extraBytesMb * 1024L * 1024,
+            FallbackOnSizeExceed = fallbackSize,
+            FallbackOnBaleFailure = fallbackFail,
+            FallbackLinkExpiryHours = fallbackExpiryHours,
             UpdatedAt = DateTime.UtcNow
         };
 }

@@ -20,6 +20,18 @@ internal static class ToolExecutableResolver
         return Path.Combine(hostEnvironment.ContentRootPath, "tools");
     }
 
+    public static string ResolveMediaDirectory(IHostEnvironment hostEnvironment, string? configured)
+    {
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return Path.IsPathRooted(configured)
+                ? configured
+                : Path.Combine(hostEnvironment.ContentRootPath, configured);
+        }
+
+        return Path.Combine(Path.GetTempPath(), "ProPlusBot", "media");
+    }
+
     public static async Task<string?> ResolveExecutableAsync(
         string? configuredPath,
         string bundledFullPath,
@@ -110,6 +122,16 @@ internal static class ToolExecutableResolver
         CancellationToken ct)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+
+        if (File.Exists(destinationPath) && new FileInfo(destinationPath).Length > 0)
+        {
+            logger.LogInformation(
+                "{Tool} already exists at {Path}, skipping download",
+                toolName,
+                destinationPath);
+            return;
+        }
+
         logger.LogInformation(
             "Starting download for {Tool} from {Url} to {Path}",
             toolName,

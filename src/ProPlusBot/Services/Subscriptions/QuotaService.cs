@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using ProPlusBot.Configuration;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
@@ -10,11 +8,8 @@ namespace ProPlusBot.Services.Subscriptions;
 public class QuotaService(
     AppDbContext db,
     PlanLifecycleService planLifecycle,
-    PlanDefinitionService planDefinitions,
-    IOptions<MediaDownloadOptions> mediaOptions)
+    PlanDefinitionService planDefinitions)
 {
-    private readonly long _maxFileBytes = mediaOptions.Value.MaxUploadBytes;
-
     public async Task<SubscriptionPlan> GetEffectivePlanAsync(long telegramUserId, CancellationToken ct = default)
     {
         await planLifecycle.EnsurePlanStateCurrentAsync(telegramUserId, ct);
@@ -51,11 +46,7 @@ public class QuotaService(
         var adjustments = await GetAdjustmentsAsync(telegramUserId, ct);
         var monthly = await GetTotalDownloadUsageAsync(telegramUserId, monthlyStart, ct);
 
-        var maxFileBytes = await planDefinitions.GetMaxFileBytesAsync(telegramUserId, plan, platform, ct);
-        if (maxFileBytes <= 0)
-            maxFileBytes = _maxFileBytes;
-        else
-            maxFileBytes = Math.Min(maxFileBytes, _maxFileBytes);
+        var maxFileBytes = await GetMaxFileBytesAsync(telegramUserId, ct);
         var countLimit = planRow.MonthlyDownloadCount;
         var bytesLimit = planRow.MonthlyDownloadBytes;
         var extraCount = adjustments.ExtraCount;
@@ -64,7 +55,8 @@ public class QuotaService(
         if (countLimit > 0 && monthly.Count >= countLimit + extraCount)
             return (false, "سقف تعداد دانلود ماهانه تمام شده است.");
 
-        if (bytesLimit > 0 && monthly.Bytes + maxFileBytes > bytesLimit + extraBytes)
+        if (bytesLimit > 0 && maxFileBytes < long.MaxValue
+            && monthly.Bytes + maxFileBytes > bytesLimit + extraBytes)
             return (false, "سقف حجم دانلود ماهانه تمام شده است.");
 
         return (true, null);
@@ -111,17 +103,11 @@ public class QuotaService(
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<long> GetMaxFileBytesAsync(
-        long telegramUserId,
-        MediaPlatformKind platform,
-        CancellationToken ct = default)
+    public async Task<long> GetMaxFileBytesAsync(long telegramUserId, CancellationToken ct = default)
     {
         var plan = await GetEffectivePlanAsync(telegramUserId, ct);
-        var bytes = await planDefinitions.GetMaxFileBytesAsync(telegramUserId, plan, platform, ct);
-        if (bytes <= 0)
-            return _maxFileBytes;
-
-        return Math.Min(bytes, _maxFileBytes);
+        var bytes = await planDefinitions.GetMaxFileBytesAsync(plan, ct);
+        return bytes > 0 ? bytes : long.MaxValue;
     }
 
     public async Task<(bool Allowed, string? Message)> ValidateFileSizeAsync(
@@ -139,8 +125,8 @@ public class QuotaService(
         if (user is not null && !PlanLifecycleService.HasSubscriptionAccess(user))
             return (false, SubscriptionMessages.TrialExpired);
 
-        var maxFileBytes = await GetMaxFileBytesAsync(telegramUserId, platform, ct);
-        if (fileSizeBytes <= maxFileBytes)
+        var maxFileBytes = await GetMaxFileBytesAsync(telegramUserId, ct);
+        if (maxFileBytes >= long.MaxValue || fileSizeBytes <= maxFileBytes)
             return (true, null);
 
         return (false,
@@ -200,13 +186,7 @@ public class QuotaService(
 
         var effectivePlan = PlanLifecycleService.IsPaidPlanActive(user) ? user.Plan : SubscriptionPlan.Free;
         var shared = await BuildSharedQuotaAsync(telegramUserId, effectivePlan, ct);
-        var maxFiles = new List<PlatformMaxFileDto>();
-
-        foreach (var platform in Enum.GetValues<MediaPlatformKind>())
-        {
-            var max = await GetMaxFileBytesAsync(telegramUserId, platform, ct);
-            maxFiles.Add(new PlatformMaxFileDto(platform, max));
-        }
+        var maxFileBytes = await GetMaxFileBytesAsync(telegramUserId, ct);
 
         var reserved = await planLifecycle.GetReservedPlansAsync(telegramUserId, ct);
         var reservedDtos = reserved
@@ -223,7 +203,7 @@ public class QuotaService(
             PlanLifecycleService.HasSubscriptionAccess(user),
             PlanLifecycleService.IsTrialActive(user),
             shared,
-            maxFiles,
+            maxFileBytes >= long.MaxValue ? 0 : maxFileBytes,
             reservedDtos);
     }
 

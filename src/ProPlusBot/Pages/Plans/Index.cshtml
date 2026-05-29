@@ -1,4 +1,5 @@
 @page
+@using Microsoft.AspNetCore.Mvc.Rendering
 @using ProPlusBot.Entities
 @using ProPlusBot.Services.Subscriptions
 @model ProPlusBot.Pages.Plans.IndexModel
@@ -29,6 +30,21 @@
 </div>
 
 <form method="post" asp-page-handler="SavePlans">
+    <div class="card mb-3">
+        <div class="card-body">
+            <h3 class="h6">آپلود جایگزین ArvanCloud (مشترک)</h3>
+            @if (!Model.ArvanCloudConfigured)
+            {
+                <div class="alert alert-warning py-2 mb-2">بخش <code>ArvanCloudStorage</code> در appsettings پیکربندی نشده است.</div>
+            }
+            <label class="form-label" asp-for="BaleDirectArvanMegabytes">حداکثر حجم ارسال در بله (مگابایت)</label>
+            <input asp-for="BaleDirectArvanMegabytes" type="number" class="form-control" style="max-width:12rem" min="1" max="2048" />
+            <div class="form-text">
+                آستانه ارسال در پیام‌رسان بله (جدا از «حداکثر حجم هر فایل» بسته). فایل‌های بزرگ‌تر یا مساوی این حجم،
+                برای بسته‌هایی که «حجم زیاد → Arvan» فعال است، از ArvanCloud ارسال می‌شوند؛ کوچک‌ترها مستقیم در بله.
+            </div>
+        </div>
+    </div>
     <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle text-center">
             <thead class="table-dark">
@@ -82,6 +98,37 @@
                 @for (var c = 0; c < Model.PostedPlans.Count; c++)
                 {
                     <td><input type="number" name="PostedPlans[@c].MaxFileMegabytes" value="@Model.PostedPlans[c].MaxFileMegabytes" class="form-control form-control-sm" min="0" step="0.01" /></td>
+                }
+            </tr>
+            <tr class="table-secondary">
+                <td class="text-start" colspan="@(Model.PostedPlans.Count + 1)"><strong>ArvanCloud (آپلود جایگزین)</strong></td>
+            </tr>
+            <tr>
+                <td class="text-start">حجم از حد بله بیشتر → Arvan</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td class="text-center">
+                        <input asp-for="PostedPlans[c].FallbackOnSizeExceed" class="form-check-input" />
+                    </td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">خطای ارسال بله → Arvan</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td class="text-center">
+                        <input asp-for="PostedPlans[c].FallbackOnBaleFailure" class="form-check-input" />
+                    </td>
+                }
+            </tr>
+            <tr>
+                <td class="text-start">اعتبار لینک Arvan (ساعت)</td>
+                @for (var c = 0; c < Model.PostedPlans.Count; c++)
+                {
+                    <td>
+                        <select asp-for="PostedPlans[c].FallbackLinkExpiryHours" class="form-select form-select-sm"
+                                asp-items="@(new SelectList(Model.FallbackExpiryHourOptions))"></select>
+                    </td>
                 }
             </tr>
             <tr class="table-secondary">

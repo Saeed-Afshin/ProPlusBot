@@ -8,7 +8,7 @@ using ProPlusBot.Configuration;
 namespace ProPlusBot.Services.Media;
 
 public class YtDlpService(
-    IOptions<MediaDownloadOptions> options,
+    IOptions<DownloadOptions> options,
     YouTubeCookiesProvider cookiesProvider,
     MediaToolsLocator tools,
     ILogger<YtDlpService> logger)
@@ -33,7 +33,7 @@ public class YtDlpService(
         @"^\s*\d{2,4}\s+(?:mp4|webm|m4a|3gp|mkv)\b",
         RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private readonly MediaDownloadOptions _options = options.Value;
+    private readonly DownloadOptions _options = options.Value;
 
     public async Task<IReadOnlyList<MediaSearchResultItem>> SearchYouTubeAsync(
         string query,
@@ -321,7 +321,7 @@ public class YtDlpService(
             sb.AppendLine(
                 "YouTube returned ONLY storyboard rows (sb0–sb3, mhtml) — no video/audio streams. "
                 + "Cookies may be present but rejected (expired, wrong export, or VPS IP differs from where cookies were created). "
-                + "Re-export cookies on the same network as the server if possible, or use a PO token (MediaDownload:YouTubePoToken). "
+                + "Re-export cookies on the same network as the server if possible, or use a PO token (Download:YouTubePoToken). "
                 + "See verbose / no-cookie sections below and https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide");
         }
         else if (diagnostic is { RawFormatCount: > 0, SelectableFormatCount: 0 })

@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProPlusBot.Auth;
+using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
+using ProPlusBot.Services;
+using ProPlusBot.Services.Media;
 using ProPlusBot.Services.Subscriptions;
 
 namespace ProPlusBot.Pages.Plans;
@@ -11,7 +14,9 @@ namespace ProPlusBot.Pages.Plans;
 [Authorize(AuthenticationSchemes = AuthConstants.Scheme)]
 public class IndexModel(
     PlanDefinitionService planDefinitions,
-    TrialSettingsService trialSettings) : PageModel
+    BotSettingsService botSettings,
+    TrialSettingsService trialSettings,
+    IConfiguration configuration) : PageModel
 {
     private static readonly SubscriptionPlan[] PlanColumnOrder =
     [
@@ -32,6 +37,14 @@ public class IndexModel(
     [BindProperty]
     public List<PlanDefinitionDto> PostedPlans { get; set; } = [];
 
+    [BindProperty]
+    public int BaleDirectArvanMegabytes { get; set; } = UploadFallbackPresets.BytesToMegabytes(UploadFallbackPresets.DefaultMinBytes);
+
+    public bool ArvanCloudConfigured { get; private set; }
+
+    public IReadOnlyList<int> FallbackExpiryHourOptions { get; private set; } =
+        UploadFallbackPresets.AllowedExpiryHours;
+
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
         if (!User.CanAccessAdminPanel())
@@ -49,7 +62,12 @@ public class IndexModel(
         foreach (var plan in PostedPlans)
             await planDefinitions.UpdateDefinitionAsync(plan, ct);
 
-        SuccessMessage = "تنظیمات بسته‌ها ذخیره شد.";
+        await botSettings.UpdateBaleDirectArvanThresholdAsync(
+            UploadFallbackPresets.MegabytesToBytes(BaleDirectArvanMegabytes),
+            User.GetAdminId(),
+            ct);
+
+        SuccessMessage = "تنظیمات بسته‌ها و ArvanCloud ذخیره شد.";
         return await ReloadAsync(ct);
     }
 
@@ -76,6 +94,12 @@ public class IndexModel(
             .Select(plan => all.First(p => p.Plan == plan))
             .ToList();
         PostedPlans = Plans.ToList();
+
+        var bot = await botSettings.GetAsync(ct);
+        BaleDirectArvanMegabytes = UploadFallbackPresets.BytesToMegabytes(bot.BaleDirectArvanThresholdBytes);
+
+        ArvanCloudConfigured = configuration.GetSection(ArvanCloudStorageOptions.SectionName)
+            .Get<ArvanCloudStorageOptions>()?.IsConfigured == true;
 
         TrialDurationDays = (await trialSettings.GetAsync(ct)).DurationDays;
         PostedTrialDurationDays = TrialDurationDays;

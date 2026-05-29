@@ -7,19 +7,23 @@ using ProPlusBot.Configuration;
 namespace ProPlusBot.Services.Media;
 
 public class MediaToolsBootstrapHostedService(
-    IOptions<MediaDownloadOptions> options,
+    IOptions<DownloadOptions> options,
     IHostEnvironment hostEnvironment,
     MediaToolsLocator locator,
     YouTubeCookiesProvider cookiesProvider,
     IHttpClientFactory httpClientFactory,
     ILogger<MediaToolsBootstrapHostedService> logger) : IHostedService
 {
-    private readonly MediaDownloadOptions _options = options.Value;
+    private readonly DownloadOptions _options = options.Value;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var toolsDir = ToolExecutableResolver.ResolveToolsDirectory(hostEnvironment, _options.ToolsDirectory);
-        logger.LogInformation("Media tools bootstrap starting (tools directory: {ToolsDir})", toolsDir);
+        var mediaDir = ToolExecutableResolver.ResolveMediaDirectory(hostEnvironment, _options.MediaDirectory);
+        logger.LogInformation(
+            "Media tools bootstrap starting (tools: {ToolsDir}, media downloads: {MediaDir})",
+            toolsDir,
+            mediaDir);
 
         var ytDlp = await ResolveYtDlpAsync(toolsDir, cancellationToken);
         var galleryDl = await ResolveGalleryDlAsync(toolsDir, cancellationToken);
@@ -38,7 +42,7 @@ public class MediaToolsBootstrapHostedService(
             {
                 logger.LogWarning(
                     "YouTube downloads will likely fail until cookies are configured. " +
-                    "Paste cookies in admin Settings, or use tools/{File} / MediaDownload env vars.",
+                    "Paste cookies in admin Settings, or use tools/{File} / Download env vars.",
                     YouTubeCookiesResolver.DefaultCookiesFileName);
             }
             else if (cookies is not null)
@@ -66,7 +70,7 @@ public class MediaToolsBootstrapHostedService(
         {
             logger.LogCritical(
                 "Media downloads are disabled: neither yt-dlp nor gallery-dl is available. " +
-                "Install tools on the server, set MediaDownload:YtDlpPath / GalleryDlPath, " +
+                "Install tools on the server, set Download:YtDlpPath / GalleryDlPath, " +
                 "or enable AutoDownloadYtDlp / AutoDownloadGalleryDl with outbound HTTPS and a writable tools directory ({ToolsDir}).",
                 toolsDir);
         }
@@ -80,8 +84,8 @@ public class MediaToolsBootstrapHostedService(
         if (string.IsNullOrWhiteSpace(jsArg))
         {
             logger.LogWarning(
-                "YouTube JS runtime not available — enable MediaDownload:AutoDownloadDeno and ensure tools/ is writable, " +
-                "or set MediaDownload:YouTubeDenoPath. See scripts/youtube-server-setup.md");
+                "YouTube JS runtime not available — enable Download:AutoDownloadDeno and ensure tools/ is writable, " +
+                "or set Download:YouTubeDenoPath. See scripts/youtube-server-setup.md");
             return;
         }
 
@@ -167,6 +171,13 @@ public class MediaToolsBootstrapHostedService(
         }
 
         var installPath = Path.Combine(toolsDir, "deno", "bin", DenoDownloadAssets.InstalledName);
+        var existingDeno = await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
+        if (existingDeno is not null)
+        {
+            logger.LogInformation("deno already installed at {Path}, skipping download", existingDeno);
+            return existingDeno;
+        }
+
         var downloadsDir = Path.Combine(toolsDir, "downloads");
         var archivePath = Path.Combine(downloadsDir, asset.Value.ArchiveFileName);
         var extractRoot = Path.Combine(toolsDir, ".deno-extract");
@@ -328,6 +339,12 @@ public class MediaToolsBootstrapHostedService(
             return null;
 
         var installPath = Path.Combine(toolsDir, "yt-dlp", "bin", YtDlpDownloadAssets.InstalledName);
+        var existing = await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
+        if (existing is not null)
+        {
+            logger.LogInformation("yt-dlp already installed at {Path}, skipping download", existing);
+            return existing;
+        }
 
         try
         {
@@ -351,6 +368,12 @@ public class MediaToolsBootstrapHostedService(
             return null;
 
         var installPath = Path.Combine(toolsDir, "gallery-dl", "bin", GalleryDlDownloadAssets.InstalledName);
+        var existing = await ToolExecutableResolver.TryResolveFileAsync(installPath, ct);
+        if (existing is not null)
+        {
+            logger.LogInformation("gallery-dl already installed at {Path}, skipping download", existing);
+            return existing;
+        }
 
         try
         {
@@ -376,6 +399,12 @@ public class MediaToolsBootstrapHostedService(
         var archivePath = Path.Combine(downloadsDir, asset.ArchiveFileName);
         var extractRoot = Path.Combine(toolsDir, ".ffmpeg-extract");
         var installPath = Path.Combine(toolsDir, "ffmpeg", "bin", FfmpegPlatformAssets.ExecutableName);
+        var existingFfmpeg = await ToolExecutableResolver.TryResolveDirectoryAsync(installPath, ct);
+        if (existingFfmpeg is not null)
+        {
+            logger.LogInformation("ffmpeg already installed at {Path}, skipping download", existingFfmpeg);
+            return existingFfmpeg;
+        }
 
         try
         {
@@ -418,7 +447,7 @@ public class MediaToolsBootstrapHostedService(
         {
             logger.LogError(
                 ex,
-                "Failed to download or extract ffmpeg (install ffmpeg on the server or set MediaDownload:FfmpegPath)");
+                "Failed to download or extract ffmpeg (install ffmpeg on the server or set Download:FfmpegPath)");
             return null;
         }
         finally

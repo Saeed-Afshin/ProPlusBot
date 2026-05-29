@@ -1,6 +1,7 @@
 @page
 @model ProPlusBot.Pages.Settings.IndexModel
 @using ProPlusBot.Entities
+@using ProPlusBot.Services.Subscriptions
 @{
     ViewData["Title"] = "تنظیمات ربات";
 }
@@ -72,32 +73,8 @@
         <input asp-for="PinterestEnabled" class="form-check-input" />
         <label asp-for="PinterestEnabled" class="form-check-label">پینترست (جستجو و دانلود لینک)</label>
     </div>
-    <hr class="my-4" />
-    <h2 class="h5 mb-3">آپلود جایگزین (ArvanCloud)</h2>
-    <div class="form-check mb-3">
-        <input asp-for="UploadFallbackEnabled" class="form-check-input" />
-        <label asp-for="UploadFallbackEnabled" class="form-check-label">فعال‌سازی آپلود جایگزین</label>
-        <div class="form-text">
-            برای فایل‌های بزرگ‌تر از حداقل اندازهٔ زیر (یا وقتی ارسال به بله ناموفق باشد)، فایل با نام GUID روی ArvanCloud (دسترسی عمومی) آپلود و لینک برای کاربر ارسال می‌شود.
-            @if (!Model.ArvanCloudConfigured)
-            {
-                <span class="text-danger d-block">بخش <code>ArvanCloudStorage</code> در appsettings پیکربندی نشده است.</span>
-            }
-        </div>
-    </div>
-    <div class="mb-3">
-        <label class="form-label" asp-for="UploadFallbackMinMegabytes">حداقل اندازه برای آپلود جایگزین (مگابایت)</label>
-        <input asp-for="UploadFallbackMinMegabytes" type="number" class="form-control" min="1" max="2048" />
-        <div class="form-text">
-            فایل‌های بزرگ‌تر یا مساوی این حجم مستقیماً از ArvanCloud ارسال می‌شوند (بدون تلاش برای بله).
-            سقف آپلود بله در <code>MediaDownload:MaxUploadBytes</code> است: <strong>@Model.BaleMaxUploadMegabytes مگابایت</strong> — در صورت تغییر محدودیت بله، آن مقدار را در appsettings به‌روز کنید.
-        </div>
-    </div>
-    <div class="mb-3">
-        <label class="form-label" asp-for="UploadFallbackExpiryHours">مدت اعتبار لینک (ساعت)</label>
-        <select asp-for="UploadFallbackExpiryHours" class="form-select"
-                asp-items="@(new SelectList(Model.UploadFallbackExpiryOptions))"></select>
-        <div class="form-text">پس از انقضا فایل از ArvanCloud و پایگاه داده حذف می‌شود. درخواست مجدد همان فایل، لینک را تمدید می‌کند.</div>
+    <div class="alert alert-info py-2">
+        تنظیمات ArvanCloud (حد بله، سناریوها و اعتبار لینک هر بسته) در صفحه <a asp-page="/Plans/Index">بسته‌ها</a> است.
     </div>
     <hr class="my-4" />
     <h2 class="h5 mb-3">ذخیره وضعیت گفتگو (جستجو / کیفیت)</h2>

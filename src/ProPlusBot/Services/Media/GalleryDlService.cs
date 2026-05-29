@@ -5,10 +5,10 @@ namespace ProPlusBot.Services.Media;
 
 public class GalleryDlService(
     MediaToolsLocator tools,
-    IOptions<MediaDownloadOptions> options,
+    IOptions<DownloadOptions> options,
     ILogger<GalleryDlService> logger)
 {
-    private readonly MediaDownloadOptions _options = options.Value;
+    private readonly DownloadOptions _options = options.Value;
 
     public async Task<MediaToolDownloadResult> DownloadAsync(string url, string outputDirectory, CancellationToken ct = default)
     {

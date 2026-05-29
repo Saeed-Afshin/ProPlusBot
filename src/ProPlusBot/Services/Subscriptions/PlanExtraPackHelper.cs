@@ -17,7 +17,4 @@ public static class PlanExtraPackHelper
     public static string BuildOfferText(PlanPricing plan) =>
         $"می‌توانید {plan.ExtraDownloadCountPack} دانلود با حجم {ByteUnits.FormatVolume(plan.ExtraDownloadBytesPack)} " +
         $"را به قیمت {TomanCurrency.FormatToman(GetPackPriceToman(plan))} تهیه کنید.";
-
-    public static long GetUnifiedMaxFileBytes(PlanPricing plan) =>
-        plan.MaxFileBytesYouTube > 0 ? plan.MaxFileBytesYouTube : plan.MaxFileBytesPinterest;
 }

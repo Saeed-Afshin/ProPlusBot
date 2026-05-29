@@ -5,6 +5,7 @@ obj/
 *.suo
 appsettings.Development.json
 appsettings.*.local.json
+.env
 # Never commit real tokens; Production secrets belong in env vars or *.local.json on the server
 **/secrets.json
 tools/

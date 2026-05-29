@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
@@ -105,19 +107,26 @@ public class MediaDownloadProcessor(
     YtDlpService ytDlp,
     GalleryDlService galleryDl,
     MediaFileSender fileSender,
-    BotSettingsService botSettings,
+    AdminSettingsCache adminSettingsCache,
     FallbackUploadService fallbackUploads,
     QuotaService quotaService,
     UserAccessService userAccess,
     MediaDownloadJobService jobService,
     UserInteractionLogService interactionLog,
     ErrorLogService errorLog,
+    IOptions<DownloadOptions> mediaOptions,
+    IHostEnvironment hostEnvironment,
     ILogger<MediaDownloadProcessor> logger)
 {
     public async Task ProcessAsync(MediaDownloadWorkItem job, CancellationToken ct)
     {
         var bot = clientFactory.CreateClient();
-        var tempDir = Path.Combine(Path.GetTempPath(), "ProPlusBot", "media", Guid.NewGuid().ToString("N"));
+        var mediaRoot = ToolExecutableResolver.ResolveMediaDirectory(
+            hostEnvironment,
+            mediaOptions.Value.MediaDirectory);
+        Directory.CreateDirectory(mediaRoot);
+        var tempDir = Path.Combine(mediaRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
         var mediaJob = new MediaDownloadJob(
             job.ChatId,
             job.SourceUrl,
@@ -246,8 +255,10 @@ public class MediaDownloadProcessor(
         MediaDownloadWorkItem job,
         CancellationToken ct)
     {
-        var settings = await botSettings.GetAsync(ct);
-        if (!settings.UploadFallbackEnabled)
+        var config = (await adminSettingsCache.GetAsync(ct)).ToUploadFallbackConfig();
+        var plan = await quotaService.GetEffectivePlanAsync(job.ChatId, ct);
+        var planPolicy = config.GetPlan(plan);
+        if (!planPolicy.AllowsAny())
             return false;
 
         var contentKey = FallbackUploadContentKey.Compute(job.SourceUrl, job.Platform, job.YouTubeFormatId);
@@ -255,8 +266,9 @@ public class MediaDownloadProcessor(
         if (cached is null)
             return false;
 
-        await fallbackUploads.RenewExpiryAsync(cached.Id, settings.UploadFallbackExpiryHours, ct);
-        await fileSender.SendFallbackLinkAsync(bot, job.ChatId, cached.PublicUrl, cached.FileSizeBytes, ct);
+        await fallbackUploads.RenewExpiryAsync(cached.Id, planPolicy.ExpiryHours, ct);
+        var expiresAt = FallbackLinkMessages.ComputeExpiresAtUtc(planPolicy.ExpiryHours);
+        await fileSender.SendFallbackLinkAsync(bot, job.ChatId, cached.PublicUrl, cached.FileSizeBytes, expiresAt, ct);
 
         if (!await userAccess.IsPrivilegedUserAsync(job.ChatId, ct))
         {

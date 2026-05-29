@@ -11,23 +11,23 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl fonts-dejavu-core \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux" -o /usr/local/bin/yt-dlp \
-    && chmod +x /usr/local/bin/yt-dlp \
-    && curl -fsSL "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.1/gallery-dl.bin" -o /usr/local/bin/gallery-dl \
-    && chmod +x /usr/local/bin/gallery-dl \
+    && apt-get install -y --no-install-recommends ca-certificates fonts-dejavu-core \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
 
-RUN mkdir -p /app/data/dataprotection-keys /app/publish/tools
+RUN mkdir -p /app/data/dataprotection-keys /app/tools /app/media
 
-ENV MediaDownload__YtDlpPath=/usr/local/bin/yt-dlp
-ENV MediaDownload__GalleryDlPath=/usr/local/bin/gallery-dl
-ENV MediaDownload__AutoDownloadYtDlp=false
-ENV MediaDownload__AutoDownloadGalleryDl=false
-ENV MediaDownload__AutoDownloadFfmpeg=true
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:8080
+ENV DataProtection__KeysPath=/app/data/dataprotection-keys
+ENV Download__ToolsDirectory=/app/tools
+ENV Download__MediaDirectory=/app/media
+ENV Download__AutoDownloadYtDlp=true
+ENV Download__AutoDownloadGalleryDl=true
+ENV Download__AutoDownloadFfmpeg=true
+ENV Download__AutoDownloadDeno=true
 
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "ProPlusBot.dll"]

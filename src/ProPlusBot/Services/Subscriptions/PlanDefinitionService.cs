@@ -2,18 +2,27 @@ using Microsoft.EntityFrameworkCore;
 using ProPlusBot.Data;
 using ProPlusBot.Entities;
 using ProPlusBot.Models;
+using ProPlusBot.Services.Media;
 
 namespace ProPlusBot.Services.Subscriptions;
 
-public class PlanDefinitionService(AppDbContext db)
+public class PlanDefinitionService(
+    AppDbContext db,
+    AdminSettingsCache adminSettingsCache)
 {
-    public async Task<PlanPricing> GetPlanAsync(SubscriptionPlan plan, CancellationToken ct = default) =>
-        await db.PlanPricings.AsNoTracking().FirstAsync(p => p.Plan == plan, ct);
+    public async Task<PlanPricing> GetPlanAsync(SubscriptionPlan plan, CancellationToken ct = default)
+    {
+        var snapshot = await adminSettingsCache.GetAsync(ct);
+        return snapshot.GetPlan(plan);
+    }
 
     public async Task<List<PlanDefinitionDto>> GetAllDefinitionsAsync(CancellationToken ct = default)
     {
-        var rows = await db.PlanPricings.AsNoTracking().OrderBy(p => p.Plan).ToListAsync(ct);
-        return rows.Select(ToDto).ToList();
+        var snapshot = await adminSettingsCache.GetAsync(ct);
+        return snapshot.Plans.Values
+            .OrderBy(p => p.Plan)
+            .Select(ToDto)
+            .ToList();
     }
 
     public async Task UpdateDefinitionAsync(PlanDefinitionDto dto, CancellationToken ct = default)
@@ -28,32 +37,22 @@ public class PlanDefinitionService(AppDbContext db)
         row.MonthlyDownloadBytes = ByteUnits.FromMegabytes(dto.MonthlyDownloadMegabytes);
         row.MonthlySearchCount = Math.Max(0, dto.MonthlySearchCount);
         row.MonthlyTicketLimit = Math.Max(0, dto.MonthlyTicketLimit);
-        row.MaxFileBytesYouTube = maxFileBytes;
-        row.MaxFileBytesPinterest = maxFileBytes;
+        row.MaxFileBytes = maxFileBytes;
         row.ExtraDownloadCountPriceToman = packPrice;
         row.ExtraDownloadBytesPriceToman = packPrice;
         row.ExtraDownloadCountPack = Math.Max(0, dto.ExtraDownloadCountPack);
         row.ExtraDownloadBytesPack = packBytes;
+        row.FallbackOnSizeExceed = dto.FallbackOnSizeExceed;
+        row.FallbackOnBaleFailure = dto.FallbackOnBaleFailure;
+        row.FallbackLinkExpiryHours = UploadFallbackPresets.NormalizeExpiryHours(dto.FallbackLinkExpiryHours);
         row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<long> GetMaxFileBytesAsync(
-        long telegramUserId,
-        SubscriptionPlan plan,
-        MediaPlatformKind platform,
-        CancellationToken ct = default)
+    public async Task<long> GetMaxFileBytesAsync(SubscriptionPlan plan, CancellationToken ct = default)
     {
         var planRow = await GetPlanAsync(plan, ct);
-        var planMax = PlanExtraPackHelper.GetUnifiedMaxFileBytes(planRow);
-
-        var userOverride = await db.UserPlanPlatformLimits.AsNoTracking()
-            .FirstOrDefaultAsync(l =>
-                l.TelegramUserId == telegramUserId
-                && l.Platform == platform
-                && l.LimitKind == QuotaLimitKind.MaxFileBytes, ct);
-
-        return userOverride?.LimitValue ?? planMax;
+        return planRow.MaxFileBytes;
     }
 
     public static PlanDefinitionDto ToDto(PlanPricing p) =>
@@ -64,8 +63,11 @@ public class PlanDefinitionService(AppDbContext db)
             ByteUnits.ToMegabytes(p.MonthlyDownloadBytes),
             p.MonthlySearchCount,
             p.MonthlyTicketLimit,
-            ByteUnits.ToMegabytes(PlanExtraPackHelper.GetUnifiedMaxFileBytes(p)),
+            ByteUnits.ToMegabytes(p.MaxFileBytes),
             PlanExtraPackHelper.GetPackPriceToman(p),
             p.ExtraDownloadCountPack,
-            ByteUnits.ToMegabytes(p.ExtraDownloadBytesPack));
+            ByteUnits.ToMegabytes(p.ExtraDownloadBytesPack),
+            p.FallbackOnSizeExceed,
+            p.FallbackOnBaleFailure,
+            p.FallbackLinkExpiryHours);
 }

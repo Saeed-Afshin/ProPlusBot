@@ -1,8 +1,8 @@
 namespace ProPlusBot.Configuration;
 
-public class MediaDownloadOptions
+public class DownloadOptions
 {
-    public const string SectionName = "MediaDownload";
+    public const string SectionName = "Download";
 
     /// <summary>Executable name or full path to yt-dlp.</summary>
     public string YtDlpPath { get; set; } = "yt-dlp";
@@ -15,9 +15,6 @@ public class MediaDownloadOptions
 
     /// <summary>HTTP timeout for Pinterest unofficial search API.</summary>
     public int PinterestSearchTimeoutSeconds { get; set; } = 30;
-
-    /// <summary>Max file size to send via Bale (bytes). Default ~49 MB.</summary>
-    public long MaxUploadBytes { get; set; } = 49 * 1024 * 1024;
 
     public int ProcessTimeoutSeconds { get; set; } = 600;
 
@@ -40,6 +37,12 @@ public class MediaDownloadOptions
 
     /// <summary>Folder for bundled tools (relative to content root unless absolute).</summary>
     public string ToolsDirectory { get; set; } = "tools";
+
+    /// <summary>
+    /// Parent folder for per-job YouTube/Pinterest downloads (each job gets a subfolder).
+    /// Relative paths are under the app content root; when empty, uses OS temp (ProPlusBot/media).
+    /// </summary>
+    public string? MediaDirectory { get; set; }
 
     /// <summary>Netscape-format cookies.txt for YouTube (export from browser). Preferred on servers.</summary>
     public string? YouTubeCookiesFile { get; set; }

@@ -12,13 +12,13 @@ namespace ProPlusBot.Services.Media;
 /// </summary>
 public class YouTubeCookiesProvider(
     IServiceScopeFactory scopeFactory,
-    IOptions<MediaDownloadOptions> options,
+    IOptions<DownloadOptions> options,
     IHostEnvironment hostEnvironment,
     ILogger<YouTubeCookiesProvider> logger)
 {
     public const string AdminCookiesFileName = "youtube-cookies.active.txt";
 
-    private readonly MediaDownloadOptions _options = options.Value;
+    private readonly DownloadOptions _options = options.Value;
     private readonly string _adminCookiePath = Path.Combine(
         Path.GetTempPath(),
         "ProPlusBot",

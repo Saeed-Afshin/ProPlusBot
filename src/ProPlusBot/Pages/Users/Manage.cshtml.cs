@@ -15,7 +15,6 @@ namespace ProPlusBot.Pages.Users;
 public class ManageModel(
     SubscriptionService subscriptionService,
     QuotaService quotaService,
-    UserPlanLimitService userPlanLimitService,
     BaleUserProfileSyncService profileSync,
     AppDbContext db) : PageModel
 {
@@ -44,7 +43,6 @@ public class ManageModel(
     public decimal QuotaMegabytesDelta { get; set; }
 
     public UserAccountSummaryDto? AccountSummary { get; set; }
-    public IReadOnlyList<UserLimitEditRow> UserLimitRows { get; set; } = [];
     public IReadOnlyList<ReservedPlanDto> ReservedPlans { get; set; } = [];
 
     public string? SuccessMessage { get; set; }
@@ -137,28 +135,6 @@ public class ManageModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSaveUserMaxFileAsync(decimal megabytes, CancellationToken ct)
-    {
-        if (!User.CanAccessAdminPanel())
-            return RedirectToPage("/Login");
-
-        await userPlanLimitService.SaveUserMaxFileAsync(EditUserId, megabytes, ct);
-        SuccessMessage = "حداکثر حجم فایل ذخیره شد.";
-        await LoadUserAsync(EditUserId, ct);
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostClearUserLimitsAsync(CancellationToken ct)
-    {
-        if (!User.CanAccessAdminPanel())
-            return RedirectToPage("/Login");
-
-        await userPlanLimitService.ClearUserLimitsAsync(EditUserId, ct);
-        SuccessMessage = "محدودیت‌های سفارشی کاربر حذف شد (پیش‌فرض بسته اعمال می‌شود).";
-        await LoadUserAsync(EditUserId, ct);
-        return Page();
-    }
-
     public async Task<IActionResult> OnPostDeleteReservedAsync(Guid reservationId, CancellationToken ct)
     {
         if (!User.CanAccessAdminPanel())
@@ -186,7 +162,6 @@ public class ManageModel(
         if (user is null)
         {
             AccountSummary = null;
-            UserLimitRows = [];
             ReservedPlans = [];
             return;
         }
@@ -210,14 +185,10 @@ public class ManageModel(
         {
             AccountSummary = await quotaService.GetAccountSummaryAsync(telegramUserId, ct);
             ReservedPlans = AccountSummary.ReservedPlans;
-
-            var effectivePlan = AccountSummary.EffectivePlan;
-            UserLimitRows = await userPlanLimitService.GetUserLimitRowsAsync(telegramUserId, effectivePlan, ct);
         }
         catch
         {
             AccountSummary = null;
-            UserLimitRows = [];
             ReservedPlans = [];
         }
     }

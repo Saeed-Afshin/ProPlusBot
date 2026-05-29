@@ -17,7 +17,7 @@ References: [EJS wiki](https://github.com/yt-dlp/yt-dlp/wiki/EJS) · [PO Token G
 
 ## Managed server checklist (no SSH install)
 
-1. **Writable `tools/`** — same directory as auto-downloaded yt-dlp (usually under app publish root). If the disk is read-only, set `MediaDownload:ToolsDirectory` to a writable path (e.g. `/tmp/ProPlusBot/tools`).
+1. **Writable `tools/`** — same directory as auto-downloaded yt-dlp (usually under app publish root). If the disk is read-only, set `Download:ToolsDirectory` to a writable path (e.g. `/tmp/ProPlusBot/tools`).
 
 2. **Outbound HTTPS** — app must reach `github.com` (Deno + EJS scripts + yt-dlp).
 
@@ -42,7 +42,7 @@ yt-dlp version: 2026...
 6. **Optional PO token** (only if formats still missing after Deno works) — set in hosting env **without SSH**:
 
 ```text
-MediaDownload__YouTubePoToken=mweb.gvs+YOUR_TOKEN
+Download__YouTubePoToken=mweb.gvs+YOUR_TOKEN
 ```
 
 Manual tokens expire quickly; a [PO Token Provider plugin](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) is better for production but needs plugin install (not supported on fully locked hosts).
@@ -52,10 +52,11 @@ Manual tokens expire quickly; a [PO Token Provider plugin](https://github.com/yt
 ## Environment variables (hosting panel)
 
 ```text
-MediaDownload__ToolsDirectory=/tmp/ProPlusBot/tools
-MediaDownload__AutoDownloadDeno=true
-MediaDownload__YouTubeRemoteComponents=ejs:github
-MediaDownload__YouTubeExtractorArgs=youtube:player_client=tv,web_safari
+Download__ToolsDirectory=/tmp/ProPlusBot/tools
+Download__MediaDirectory=/tmp/ProPlusBot/media
+Download__AutoDownloadDeno=true
+Download__YouTubeRemoteComponents=ejs:github
+Download__YouTubeExtractorArgs=youtube:player_client=tv,web_safari
 ```
 
 Leave `YouTubeJsRuntimes` empty to use bundled Deno.
@@ -63,9 +64,9 @@ Leave `YouTubeJsRuntimes` empty to use bundled Deno.
 To disable Deno download (only if you bundle `tools/deno/bin/deno` in your image):
 
 ```text
-MediaDownload__AutoDownloadDeno=false
-MediaDownload__YouTubeDenoPath=/app/publish/tools/deno/bin/deno
-MediaDownload__YouTubeJsRuntimes=deno:/app/publish/tools/deno/bin/deno
+Download__AutoDownloadDeno=false
+Download__YouTubeDenoPath=/app/publish/tools/deno/bin/deno
+Download__YouTubeJsRuntimes=deno:/app/publish/tools/deno/bin/deno
 ```
 
 ---
@@ -94,7 +95,7 @@ You **cannot** run bgutil on the server without installing something. Alternativ
 | **PO Token Provider plugin** | Yes — yt-dlp plugin + often a sidecar |
 | **External token API** | No — if you host bgutil elsewhere and pass token via env |
 
-For a quick test from your PC: generate a token per [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide), set `MediaDownload__YouTubePoToken` in the panel, restart the app.
+For a quick test from your PC: generate a token per [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide), set `Download__YouTubePoToken` in the panel, restart the app.
 
 ---
 

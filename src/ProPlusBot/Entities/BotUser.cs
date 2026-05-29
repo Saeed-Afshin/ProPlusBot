@@ -24,5 +24,4 @@ public class BotUser
     public ICollection<PaymentRecord> Payments { get; set; } = [];
     public ICollection<UserQuotaAdjustment> QuotaAdjustments { get; set; } = [];
     public ICollection<UserReservedPlan> ReservedPlans { get; set; } = [];
-    public ICollection<UserPlanPlatformLimit> PlanPlatformLimits { get; set; } = [];
 }

@@ -7,7 +7,7 @@ public static class UploadFallbackPresets
     public const int MinMegabytes = 1;
     public const int MaxMegabytes = 2048;
 
-    public static readonly int[] AllowedExpiryHours = [24, 36, 48, 72, 96, 120, 168];
+    public static readonly int[] AllowedExpiryHours = [12, 24, 36, 48, 72, 96, 120, 168];
 
     public static int NormalizeExpiryHours(int hours) =>
         AllowedExpiryHours.Contains(hours)

@@ -13,8 +13,6 @@ public record SharedQuotaUsageDto(
     long ExtraDownloadBytesBonus,
     int ExtraSearchCountBonus);
 
-public record PlatformMaxFileDto(MediaPlatformKind Platform, long MaxFileBytesLimit);
-
 public record ReservedPlanDto(Guid Id, SubscriptionPlan Plan, int DurationDays, DateTime CreatedAt);
 
 public record UserAccountSummaryDto(
@@ -27,7 +25,7 @@ public record UserAccountSummaryDto(
     bool HasSubscriptionAccess,
     bool IsTrialActive,
     SharedQuotaUsageDto SharedQuota,
-    IReadOnlyList<PlatformMaxFileDto> PlatformMaxFiles,
+    long MaxFileBytesLimit,
     IReadOnlyList<ReservedPlanDto> ReservedPlans);
 
 public record PaymentRecordDto(
@@ -56,7 +54,10 @@ public record PlanDefinitionDto(
     decimal MaxFileMegabytes,
     long ExtraDownloadPackPriceToman,
     int ExtraDownloadCountPack,
-    decimal ExtraDownloadPackMegabytes);
+    decimal ExtraDownloadPackMegabytes,
+    bool FallbackOnSizeExceed,
+    bool FallbackOnBaleFailure,
+    int FallbackLinkExpiryHours);
 
 public record TrialSettingsDto(int DurationDays);
 

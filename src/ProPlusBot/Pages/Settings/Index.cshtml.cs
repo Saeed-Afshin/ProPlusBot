@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProPlusBot.Auth;
 using ProPlusBot.Entities;
-using ProPlusBot.Configuration;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Media;
 
@@ -38,22 +37,6 @@ public class IndexModel(BotSettingsService settingsService, IConfiguration confi
 
     [BindProperty]
     public ConversationStateBackend ConversationStateBackend { get; set; } = ConversationStateBackend.Memory;
-
-    [BindProperty]
-    public bool UploadFallbackEnabled { get; set; }
-
-    [BindProperty]
-    public int UploadFallbackMinMegabytes { get; set; } = UploadFallbackPresets.BytesToMegabytes(UploadFallbackPresets.DefaultMinBytes);
-
-    [BindProperty]
-    public int UploadFallbackExpiryHours { get; set; } = UploadFallbackPresets.DefaultExpiryHours;
-
-    public int BaleMaxUploadMegabytes { get; private set; }
-
-    public bool ArvanCloudConfigured { get; private set; }
-
-    public IReadOnlyList<int> UploadFallbackExpiryOptions { get; private set; } =
-        UploadFallbackPresets.AllowedExpiryHours;
 
     public bool RedisConfigured { get; private set; }
 
@@ -122,14 +105,12 @@ public class IndexModel(BotSettingsService settingsService, IConfiguration confi
             rows,
             SearchGridJpegQuality,
             ConversationStateBackend,
-            UploadFallbackEnabled,
-            UploadFallbackPresets.MegabytesToBytes(UploadFallbackMinMegabytes),
-            UploadFallbackExpiryHours,
+            baleDirectArvanThresholdBytes: null,
             User.GetAdminId(),
             ct);
 
         SuccessMessage = ClearYouTubeCookies || !string.IsNullOrWhiteSpace(YouTubeCookiesPaste)
-            ? "تنظیمات و کوکی یوتیوب ذخیره شد. بدون راه‌اندازی مجدد اعمال می‌شود."
+            ? "تنظیمات و کوکی یوتیوب ذخیره شد. بدون راه‌اندازی مجزد اعمال می‌شود."
             : "تنظیمات ذخیره شد. برای تغییر حالت دریافت پیام، برنامه را مجدداً راه‌اندازی کنید.";
         await LoadAsync(ct);
         return Page();
@@ -147,15 +128,6 @@ public class IndexModel(BotSettingsService settingsService, IConfiguration confi
         SearchGridPreset = SearchGridPresets.Format(s.SearchGridColumns, s.SearchGridRows);
         SearchGridJpegQuality = s.SearchGridJpegQuality;
         ConversationStateBackend = s.ConversationStateBackend;
-        UploadFallbackEnabled = s.UploadFallbackEnabled;
-        UploadFallbackMinMegabytes = UploadFallbackPresets.BytesToMegabytes(s.UploadFallbackMinBytes);
-        UploadFallbackExpiryHours = s.UploadFallbackExpiryHours;
-        var maxUploadBytes = configuration.GetSection(MediaDownloadOptions.SectionName)
-            .GetValue<long?>(nameof(MediaDownloadOptions.MaxUploadBytes))
-            ?? UploadFallbackPresets.DefaultMinBytes;
-        BaleMaxUploadMegabytes = UploadFallbackPresets.BytesToMegabytes(maxUploadBytes);
-        ArvanCloudConfigured = configuration.GetSection(ProPlusBot.Configuration.ArvanCloudStorageOptions.SectionName)
-            .Get<ProPlusBot.Configuration.ArvanCloudStorageOptions>()?.IsConfigured == true;
         RedisConfigured = !string.IsNullOrWhiteSpace(configuration["Redis:ConnectionString"]);
 
         var cookieStatus = await settingsService.GetYouTubeCookiesStatusAsync(ct);

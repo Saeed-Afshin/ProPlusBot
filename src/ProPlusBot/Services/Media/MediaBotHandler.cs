@@ -1,6 +1,4 @@
 using System.Globalization;
-using Microsoft.Extensions.Options;
-using ProPlusBot.Configuration;
 using ProPlusBot.Entities;
 using ProPlusBot.Services;
 using ProPlusBot.Services.Subscriptions;
@@ -24,7 +22,6 @@ public class MediaBotHandler(
     BotFeatureService botFeatures,
     BotSettingsService botSettingsService,
     ErrorLogService errorLog,
-    IOptions<MediaDownloadOptions> mediaOptions,
     ILogger<MediaBotHandler> logger)
 {
     public async Task<bool> HandleCallbackQueryAsync(CallbackQuery callback, CancellationToken ct)
@@ -824,12 +821,7 @@ public class MediaBotHandler(
         if (await userAccess.IsPrivilegedUserAsync(userId, ct))
             return long.MaxValue;
 
-        var planMax = await quotaService.GetMaxFileBytesAsync(
-            userId,
-            MediaPlatformKind.YouTube,
-            ct);
-
-        return Math.Min(planMax, mediaOptions.Value.MaxUploadBytes);
+        return await quotaService.GetMaxFileBytesAsync(userId, ct);
     }
 
     private async Task HandleSearchMenuRequestAsync(ITelegramBotClient bot, long userId, CancellationToken ct)
